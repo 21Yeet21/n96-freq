@@ -1,0 +1,603 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="twilight">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>N96_freq — your quiet room</title>
+  <meta name="description" content="Multi-source music player with ambient sounds, YouTube mixes, and Spotify integration">
+  <meta name="theme-color" content="#0d1535">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@200;300;400;500;600&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/css/style.css?v=75">
+</head>
+<body>
+  <canvas id="aurora-canvas" aria-hidden="true"></canvas>
+
+  <div class="app-surface">
+    <!-- Theme toggle -->
+
+    <button class="btn-icon theme-toggle-btn" onclick="toggleTheme()" title="Toggle theme" aria-label="Toggle theme"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg></button>
+
+    <!-- Skip to main content (accessibility) -->
+    <a href="#now-playing" class="skip-link" style="position:absolute;top:-100px;left:0;z-index:9999;padding:8px 16px;background:var(--accent);color:#000;text-decoration:none;font-weight:bold;border-radius:0 0 4px 0;transition:top 0.2s;" onfocus="this.style.top='0'" onblur="this.style.top='-100px'">Skip to player</a>
+
+    <!-- Left Playlist Sidebar -->
+    <nav class="sidebar" id="main-sidebar" aria-label="Navigation">
+      <!-- 1. Branding at the top -->
+      <div class="sidebar-branding">
+        <div class="branding-text" onclick="resetToHome()" role="button" tabindex="0" aria-label="Reset to home" title="Click to return to home">
+          <div class="logo-title">N96_FREQ</div>
+          <div class="logo-subtitle">your quiet room</div>
+        </div>
+        <button class="btn-icon setup-wizard-btn" onclick="event.stopPropagation(); openSetupWizard()" title="Setup Wizard" aria-label="Setup Wizard"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg></button>
+      </div>
+
+      <!-- 2. Scrollable content area for all lists -->
+      <div class="sidebar-scroll-area">
+        <!-- PLAYLISTS — collapsible -->
+        <div class="sidebar-section collapsible" id="playlists-section">
+          <div class="sidebar-header collapsible-header" onclick="toggleSidebarSection('playlists-section')" role="button" aria-expanded="true" tabindex="0">
+            <span>PLAYLISTS</span>
+            <span class="chevron" aria-hidden="true">▾</span>
+          </div>
+          <div class="sidebar-list" id="playlist-list" role="list"></div>
+        </div>
+
+        <!-- YOUTUBE MIXES — collapsible -->
+        <div class="sidebar-section collapsible" id="yt-mixes-section">
+          <div class="sidebar-header collapsible-header" onclick="toggleSidebarSection('yt-mixes-section')" role="button" aria-expanded="true" tabindex="0">
+            <span>YOUTUBE MIXES</span>
+            <span class="chevron" aria-hidden="true">▾</span>
+          </div>
+          <div class="sidebar-list" id="yt-mixes-list" role="list">
+            <button class="sidebar-btn mix-add-btn" onclick="openAddMixModal()" aria-label="Add YouTube mix with link">
+              <span class="mix-add-icon" aria-hidden="true">+</span>
+              <span>Add mix with link</span>
+            </button>
+            <button class="sidebar-btn mix-add-btn" onclick="openPlaylistModal()" aria-label="Load YouTube Playlist" style="margin-top:4px;">
+              <span class="mix-add-icon" aria-hidden="true">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></svg>
+              </span>
+              <span>Load Playlist</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- SPOTIFY PLAYLISTS — collapsible -->
+        <div class="sidebar-section collapsible" id="spotify-section">
+          <div class="sidebar-header collapsible-header" onclick="toggleSidebarSection('spotify-section')" role="button" aria-expanded="true" tabindex="0">
+            <span>SPOTIFY PLAYLISTS</span>
+            <button class="spotify-disconnect-btn hidden" id="spotify-disconnect-btn" onclick="event.stopPropagation();disconnectSpotify()" title="Disconnect Spotify account" aria-label="Disconnect Spotify">&#10005; Disconnect</button>
+            <span class="chevron" aria-hidden="true">▾</span>
+          </div>
+          <div class="sidebar-list" id="spotify-list" role="list">
+            <button class="sidebar-btn spotify-add-btn" onclick="openAddSpotifyModal()" aria-label="Add Spotify playlist with link">
+              <span class="spotify-add-icon" aria-hidden="true">+</span>
+              <span>Add playlist with link</span>
+            </button>
+            <button class="sidebar-btn spotify-refresh-btn" id="spotify-refresh-btn" onclick="refreshAllSpotifyPlaylists()" title="Re-fetch metadata for all saved Spotify playlists" aria-label="Refresh all Spotify playlists">
+              <span class="spotify-refresh-icon" id="spotify-refresh-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg></span>
+              <span>Refresh All</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- EXTERNAL SOURCES -->
+        <div class="sidebar-section">
+          <div class="sidebar-header">EXTERNAL SOURCES</div>
+          <div class="sidebar-list" id="external-source-list">
+            <button class="sidebar-btn source-btn" id="yt-source-btn" onclick="openYouTubeSearch()" title="Search YouTube and save results to your mixes" aria-label="Search YouTube">
+              <span class="source-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg></span>
+              <span>Search YouTube</span>
+            </button>
+            <button class="sidebar-btn source-btn disabled" id="sp-source-btn" onclick="openSpotifyView()" title="Connect to Spotify or view your playlists" aria-label="Spotify Playlists">
+              <span class="source-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"></path><circle cx="6" cy="18" r="3"></circle><circle cx="18" cy="16" r="3"></circle></svg></span>
+              <span id="sp-source-btn-label">Spotify Playlists</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </nav>
+
+    <!-- Now Playing Center (local files only) -->
+    <main class="now-playing" id="now-playing" aria-label="Now Playing">
+      <div class="np-content">
+        <div class="np-visual-container">
+          <canvas id="viz-canvas" aria-hidden="true"></canvas>
+        </div>
+        <!-- v73: Back buttons for YouTube/Spotify views -->
+        <button class="np-back-btn hidden" id="yt-view-back-btn" onclick="goBackView()" title="Back to previous view" aria-label="Back">← YouTube</button>
+        <button class="np-back-btn hidden" id="sp-view-back-btn" onclick="goBackView()" title="Back to previous view" aria-label="Back">← Spotify</button>
+        <div class="np-info" id="np-title" aria-live="polite">SELECT A TRACK</div>
+        <div class="np-meta" id="np-meta">Click a track below to start playback</div>
+      </div>
+      <!-- v73: Ultra Mode track info overlay (visible only in Ultra Mode when playing) -->
+      <div class="ultra-track-overlay hidden" id="ultra-track-overlay" aria-live="polite">
+        <div class="ultra-track-title" id="ultra-track-title">No track playing</div>
+        <div class="ultra-track-artist" id="ultra-track-artist"></div>
+      </div>
+    </main>
+
+    <!-- YouTube Search View (hidden by default) -->
+    <section class="youtube-view hidden" id="youtube-view" aria-label="YouTube Search">
+      <div class="yt-header">
+        <button class="yt-back-btn" onclick="closeYouTubeView()" title="Back to Now Playing" aria-label="Back to Now Playing">← Back</button>
+        <h2>Search YouTube</h2>
+        <button class="yt-playlist-load-btn" onclick="openPlaylistModal()" title="Load YouTube Playlist" aria-label="Load YouTube Playlist">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></svg>
+          <span>Playlist</span>
+        </button>
+      </div>
+
+      <div class="yt-search-container">
+        <input type="text" id="yt-search-input" placeholder="Search YouTube — songs, mixes, sets…" autocomplete="off" aria-label="Search YouTube" />
+      </div>
+      <div class="yt-grid" id="yt-grid" role="list">
+        <div class="yt-empty">Type to search YouTube. Click + on any result to save it to your mixes.</div>
+      </div>
+    </section>
+
+    <!-- YouTube Embedded Player (hidden by default; also used by Spotify playback) -->
+    <section class="yt-player-container hidden" id="yt-player-container" aria-label="Video Player">
+      <div class="yt-player-header">
+        <button class="yt-back-btn" onclick="goBackView()" title="Back to previous view" aria-label="Back">← Back</button>
+        <div class="yt-now-info">
+          <div class="yt-now-title" id="yt-now-title" aria-live="polite">No video loaded</div>
+          <div class="yt-now-meta" id="yt-now-meta"></div>
+        </div>
+        <div class="spotify-progress hidden" id="spotify-progress">
+          <span id="spotify-progress-text">—</span>
+        </div>
+      </div>
+      <div class="yt-player-wrap">
+        <div id="yt-player"></div>
+      </div>
+    </section>
+
+    <!-- External Source Restore Card (shown on page refresh instead of trying to embed) -->
+    <section class="ext-source-card hidden" id="ext-source-card" aria-label="Restored Track">
+      <div class="ext-source-inner">
+        <div class="ext-source-icon" id="ext-source-icon">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+        </div>
+        <div class="ext-source-info">
+          <div class="ext-source-title" id="ext-source-title">No track selected</div>
+          <div class="ext-source-meta" id="ext-source-meta">YOUTUBE</div>
+        </div>
+        <div class="ext-source-actions">
+          <a class="ext-source-link" id="ext-source-link" href="#" target="_blank" rel="noopener noreferrer">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+            <span id="ext-source-link-text">Open on YouTube</span>
+          </a>
+          <button class="ext-source-play-btn" id="ext-source-play-btn" onclick="playRestoredExternal()">Play here</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Controls Bar (global) -->
+    <div class="controls-bar" id="controls-bar" role="toolbar" aria-label="Playback controls">
+      <button class="ctrl-btn shuffle-btn" id="shuffle-btn" onclick="toggleShuffle()" title="Shuffle within playlist" aria-label="Toggle shuffle">SHUF</button>
+      <button class="ctrl-btn repeat-btn" id="repeat-btn" onclick="toggleRepeat()" title="Repeat: NONE" aria-label="Toggle repeat">REP</button>
+      <button class="ctrl-btn sleep-btn" id="sleep-btn" onclick="openSleepTimer()" title="Sleep Timer" aria-label="Sleep timer">⏻</button>
+      <button class="ctrl-btn" id="pomodoro-btn" onclick="togglePomodoroModal()" title="Pomodoro Timer" aria-label="Pomodoro Timer"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"></circle><path d="M12 9v4l2 2"></path><path d="M5 3L2 6"></path><path d="M22 6l-3-3"></path></svg></button>
+      <button class="ctrl-btn" onclick="playPrev()" title="Previous" aria-label="Previous track"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="19 20 9 12 19 4 19 20"></polygon><line x1="5" y1="19" x2="5" y2="5"></line></svg></button>
+      <button class="ctrl-play" id="play-pause-btn" onclick="togglePlayPause()" title="Play/Pause" aria-label="Play or Pause"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg></button>
+      <button class="ctrl-btn" onclick="playNext()" title="Next" aria-label="Next track"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 4 15 12 5 20 5 4"></polygon><line x1="19" y1="5" x2="19" y2="19"></line></svg></button>
+
+      <button class="ctrl-btn" onclick="openStatsPanel()" title="Statistics" aria-label="Statistics"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 20V10"></path><path d="M12 20V4"></path><path d="M6 20v-6"></path></svg></button>
+      <button class="ctrl-btn" id="perf-mode-btn" onclick="togglePerformanceMode()" title="Performance Mode — disable animations" aria-label="Toggle Performance Mode"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg></button>
+      <button class="ctrl-btn" id="ultra-mode-btn" onclick="toggleUltraMode()" title="Ultra Mode — audio only, maximum battery saving" aria-label="Toggle Ultra Mode"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="6" width="18" height="12" rx="2" ry="2"></rect><line x1="23" y1="13" x2="23" y2="11"></line></svg></button>
+      <span class="track-counter hidden" id="track-counter" aria-label="Track position">1 / 1</span>
+      <div class="seek-container">
+        <div id="seek-slider" role="slider" aria-label="Seek" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+          <div id="seek-fill"></div>
+        </div>
+        <div class="time-labels">
+          <span id="timer-display" style="color:var(--accent);margin-right:12px;font-weight:bold;">0:00</span>
+          <span id="duration-display" style="margin-left:8px;color:var(--text-muted);"></span>
+        </div>
+      </div>
+
+      <!-- GNOME-style Volume OSD — inside controls-bar so it's always centered above it -->
+      <div id="vol-osd" class="vol-osd" aria-hidden="true">
+        <div class="vol-osd-icon" id="vol-osd-icon">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>
+        </div>
+        <div class="vol-osd-bar-wrap">
+          <div class="vol-osd-track">
+            <div class="vol-osd-fill" id="vol-osd-fill"></div>
+          </div>
+          <input type="range" id="vol-osd-slider" class="vol-osd-slider" min="0" max="100" step="1" value="70" aria-label="Volume">
+        </div>
+        <div class="vol-osd-pct" id="vol-osd-pct">70</div>
+      </div>
+    </div>
+
+    <!-- Ambient Controls -->
+    <div class="ambient-controls-container" role="group" aria-label="Ambient sound controls">
+      <div class="ambient-layers visible">
+        <button class="layer-btn" onclick="toggleLayer('rain')" title="Rain" aria-label="Toggle Rain"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 13v5M8 13v5M12 15v5M20 16.58A5 5 0 0 0 18 7h-1.26A8 8 0 1 0 4 15.25"></path><path d="M8 18v3M12 18v3M16 18v3"></path></svg></button>
+        <button class="layer-btn" onclick="toggleLayer('wind')" title="Wind" aria-label="Toggle Wind"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.59 4.59A2 2 0 1 1 11 8H2m10.59 11.41A2 2 0 1 0 14 16H2m15.73-8.27A2.5 2.5 0 1 1 19.5 12H2"></path></svg></button>
+        <button class="layer-btn" onclick="toggleLayer('static')" title="Static" aria-label="Toggle Static"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4.9 19.1C1 15.2 1 8.8 4.9 4.9M7.8 16.2c-2.3-2.3-2.3-6.1 0-8.5M16.2 7.8c2.3 2.3 2.3 6.1 0 8.5M19.1 4.9C23 8.8 23 15.1 19.1 19.1"></path></svg></button>
+        <button class="layer-btn" onclick="toggleLayer('pink')" title="Pink Noise" aria-label="Toggle Pink Noise"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12c2-4 4-6 6-6s4 2 6 6 4 6 6 6 4-2 6-6"></path></svg></button>
+        <button class="layer-btn" onclick="toggleLayer('brown')" title="Brown Noise" aria-label="Toggle Brown Noise"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12c2 4 4 6 6 6s4-2 6-6 4-6 6-6 4 2 6 6"></path></svg></button>
+        <button class="layer-btn" onclick="toggleLayer('thunder')" title="Thunder" aria-label="Toggle Thunder"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg></button>
+      </div>
+      <div class="ambient-volume-slider">
+        <input type="range" id="ambient-vol-slider" min="0" max="1" step="0.01" value="0.25" title="Ambient Volume" aria-label="Ambient volume">
+      </div>
+    </div>
+
+    <!-- Track Panel -->
+    <div class="panel-overlay hidden" id="panel-overlay" onclick="hidePanel()"></div>
+    <div class="panel hidden" id="track-panel" role="dialog" aria-label="Track list">
+      <div class="panel-header">
+        <h2>TRACKS</h2>
+        <input type="text" id="track-search-input" placeholder="Search in this playlist..." aria-label="Search tracks">
+      </div>
+      <div class="track-list" id="track-list" role="list"></div>
+    </div>
+
+    <!-- YouTube Playlist Modal (v74) -->
+    <div id="yt-playlist-modal" class="modal-overlay hidden" role="dialog" aria-label="Load YouTube Playlist">
+      <div class="modal-content yt-playlist-modal-content">
+        <h3>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:6px;" aria-hidden="true"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></svg>
+          Load YouTube Playlist
+        </h3>
+        <p style="color:var(--text-secondary);font-size:12px;margin-bottom:12px;">Paste a YouTube playlist URL to load and play all its videos.</p>
+        <div class="yt-playlist-input-row">
+          <input type="text" id="yt-playlist-url-input" placeholder="https://youtube.com/playlist?list=..." autocomplete="off" aria-label="YouTube playlist URL" />
+          <button class="btn-primary" id="yt-playlist-fetch-btn" onclick="fetchYouTubePlaylist()">Fetch</button>
+        </div>
+        <div id="yt-playlist-error" style="color:#ff6b6b;font-size:11px;margin-top:8px;min-height:14px;" role="alert"></div>
+        <div id="yt-playlist-loading" class="yt-playlist-loading hidden">
+          <div class="spinner"></div>
+          <span>Fetching playlist…</span>
+        </div>
+        <div id="yt-playlist-result" class="yt-playlist-result hidden">
+          <div class="yt-playlist-result-header">
+            <div class="yt-playlist-result-title" id="yt-playlist-result-title">Playlist</div>
+            <div class="yt-playlist-result-count" id="yt-playlist-result-count">0 videos</div>
+          </div>
+          <div class="yt-playlist-controls">
+            <button class="btn-primary" id="yt-playlist-play-all-btn" onclick="playYtPlaylist(false)">Play All</button>
+            <button class="btn-secondary" id="yt-playlist-shuffle-btn" onclick="playYtPlaylist(true)">Shuffle Play</button>
+          </div>
+          <div class="yt-playlist-video-list" id="yt-playlist-video-list" role="list"></div>
+        </div>
+        <div class="modal-buttons">
+          <button id="yt-playlist-close-btn" class="btn-secondary" onclick="closePlaylistModal()">Close</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Add Mix Modal -->
+    <div id="yt-add-modal" class="modal-overlay hidden" role="dialog" aria-label="Add YouTube Mix">
+      <div class="modal-content">
+        <h3>Add YouTube Mix</h3>
+        <input type="text" id="yt-add-name" placeholder="Mix name (e.g. 'Morning Focus')" autocomplete="off" aria-label="Mix name" />
+        <input type="text" id="yt-add-input" placeholder="Paste YouTube video link here…" autocomplete="off" style="margin-top:10px;" aria-label="YouTube video URL" />
+        <div id="yt-add-error" style="color:#ff6b6b;font-size:11px;margin-top:8px;min-height:14px;" role="alert"></div>
+        <div class="modal-buttons">
+          <button id="yt-add-confirm" class="btn-primary">Add</button>
+          <button id="yt-add-cancel" class="btn-secondary">Cancel</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Add Spotify Playlist Modal -->
+    <div id="spotify-add-modal" class="modal-overlay hidden" role="dialog" aria-label="Add Spotify Playlist">
+      <div class="modal-content">
+        <h3>Add Spotify Playlist</h3>
+        <input type="text" id="sp-add-name" placeholder="Display name (optional — uses Spotify title if blank)" autocomplete="off" aria-label="Playlist display name" />
+        <input type="text" id="sp-add-input" placeholder="Paste Spotify playlist link here…" autocomplete="off" style="margin-top:10px;" aria-label="Spotify playlist URL" />
+        <div id="sp-add-error" style="color:#ff6b6b;font-size:11px;margin-top:8px;min-height:14px;" role="alert"></div>
+        <div class="modal-buttons">
+          <button id="sp-add-confirm" class="btn-primary">Add</button>
+          <button id="sp-add-cancel" class="btn-secondary">Cancel</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Error Modal -->
+    <div id="error-modal" class="modal-overlay hidden" role="alertdialog" aria-label="Playback Error">
+      <div class="modal-content">
+        <h3><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:6px;" aria-hidden="true"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>Playback Error</h3>
+        <p id="error-message"></p>
+        <div class="modal-buttons">
+          <button id="error-search-btn" class="btn-primary">Search in this playlist</button>
+          <button id="error-close-btn" class="btn-secondary">Close</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Sleep Timer Modal -->
+    <div id="sleep-modal" class="modal-overlay hidden" role="dialog" aria-label="Sleep Timer">
+      <div class="modal-content">
+        <h3>Sleep Timer</h3>
+        <p style="color:var(--text-secondary);font-size:12px;margin-bottom:12px;">Playback will fade out and pause after the selected time.</p>
+        <div class="sleep-presets" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px;">
+          <button class="btn-secondary sleep-preset" data-minutes="15">15 min</button>
+          <button class="btn-secondary sleep-preset" data-minutes="30">30 min</button>
+          <button class="btn-secondary sleep-preset" data-minutes="60">1 hour</button>
+          <button class="btn-secondary sleep-preset" data-minutes="90">1.5 hours</button>
+          <button class="btn-secondary sleep-preset" data-minutes="120">2 hours</button>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;">
+          <label style="color:var(--text-secondary);font-size:12px;white-space:nowrap;">Custom (min):</label>
+          <input type="number" id="sleep-custom-input" min="1" max="999" value="30" style="width:70px;padding:6px 8px;background:var(--bg-deep);border:1px solid var(--border);color:var(--text-primary);border-radius:var(--radius-sm);font-size:13px;" aria-label="Custom minutes" />
+          <button class="btn-primary" id="sleep-start-btn">Start</button>
+        </div>
+        <div id="sleep-status" style="display:none;text-align:center;padding:12px;background:var(--bg-deep);border-radius:var(--radius-sm);margin-bottom:12px;">
+          <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px;">Sleep timer active</div>
+          <div id="sleep-countdown" style="font-size:28px;font-weight:600;color:var(--accent);font-family:var(--font-mono);"></div>
+        </div>
+        <div class="modal-buttons">
+          <button id="sleep-cancel-btn" class="btn-secondary" style="display:none;">Cancel Timer</button>
+          <button id="sleep-close-btn" class="btn-secondary">Close</button>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Pomodoro Timer Modal -->
+    <div id="pomodoro-modal" class="modal-overlay hidden" role="dialog" aria-label="Pomodoro Timer">
+      <div class="modal-content pomodoro-modal">
+        <h3><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:6px;" aria-hidden="true"><circle cx="12" cy="13" r="8"></circle><path d="M12 9v4l2 2"></path><path d="M5 3L2 6"></path><path d="M22 6l-3-3"></path></svg>Pomodoro Timer</h3>
+        <p style="color:var(--text-secondary);font-size:12px;margin-bottom:12px;">Focus sessions with automatic phase switching. Music pauses when all sessions are done.</p>
+        <div class="pomodoro-config">
+          <label>Sessions<input type="number" id="pomo-sessions" value="4" min="1" max="10" aria-label="Number of sessions"></label>
+          <label>Work (min)<input type="number" id="pomo-work" value="25" min="1" max="120" aria-label="Work duration"></label>
+          <label>Rest (min)<input type="number" id="pomo-rest" value="5" min="1" max="60" aria-label="Rest duration"></label>
+        </div>
+        <div class="pomodoro-display">
+          <div class="pomo-phase" id="pomo-phase-text">WORK</div>
+          <div class="pomo-time" id="pomo-time-text">25:00</div>
+          <div class="pomo-session" id="pomo-session-text">Session 1 of 4</div>
+        </div>
+        <div class="modal-buttons">
+          <button class="btn-secondary" onclick="applyPomodoroSettings()">Set</button>
+          <button class="btn-primary" onclick="togglePomodoro()" id="pomo-start-btn">Start</button>
+          <button class="btn-secondary" id="pomo-close-btn">Close</button>
+        </div>
+      </div>
+    </div>
+
+
+    <!-- Statistics Modal -->
+    <div id="stats-modal" class="modal-overlay hidden" role="dialog" aria-label="Statistics">
+      <div class="modal-content stats-modal">
+        <h3><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:6px;" aria-hidden="true"><path d="M18 20V10"></path><path d="M12 20V4"></path><path d="M6 20v-6"></path></svg>Statistics</h3>
+
+        <div class="stats-summary">
+          <div class="stat-card">
+            <div class="stat-value" id="stats-listening-time">0m</div>
+            <div class="stat-label">Listening Time</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value" id="stats-tracks-played">0</div>
+            <div class="stat-label">Tracks Played</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value" id="stats-sessions-today">0</div>
+            <div class="stat-label">Sessions Today</div>
+          </div>
+        </div>
+
+        <div class="stats-section">
+          <h4>Most Played</h4>
+          <div id="stats-top-tracks"></div>
+        </div>
+
+        <div class="stats-section">
+          <h4>Recently Played</h4>
+          <div id="stats-recent"></div>
+        </div>
+
+        <div class="modal-buttons">
+          <button class="btn-secondary" onclick="exportStats()">Export</button>
+          <button class="btn-secondary" onclick="resetStats()" style="color:#ff6b6b;">Reset</button>
+          <button class="btn-secondary" onclick="closeStatsPanel()">Close</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Setup Wizard Modal (v75) -->
+    <div id="setup-wizard-modal" class="modal-overlay hidden" role="dialog" aria-label="Setup Wizard">
+      <div class="modal-content wizard-modal-content">
+        <!-- Progress Bar -->
+        <div class="wizard-progress">
+          <div class="wizard-progress-bar" id="wizard-progress-bar"></div>
+          <div class="wizard-progress-steps">
+            <span class="wizard-step-dot active" data-step="1">1</span>
+            <span class="wizard-step-dot" data-step="2">2</span>
+            <span class="wizard-step-dot" data-step="3">3</span>
+            <span class="wizard-step-dot" data-step="4">4</span>
+            <span class="wizard-step-dot" data-step="5">5</span>
+          </div>
+        </div>
+
+        <!-- Step 1: Welcome -->
+        <div class="wizard-step" id="wizard-step-1">
+          <div class="wizard-welcome-icon">
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"></path><circle cx="6" cy="18" r="3"></circle><circle cx="18" cy="16" r="3"></circle></svg>
+          </div>
+          <h3 class="wizard-title">Welcome to N96_freq</h3>
+          <p class="wizard-subtitle">Let's set up your music player in a few easy steps.</p>
+          <div class="wizard-features">
+            <div class="wizard-feature"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg> Play your local music files</div>
+            <div class="wizard-feature"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg> YouTube mixes &amp; playlists</div>
+            <div class="wizard-feature"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg> Ambient sounds &amp; timers</div>
+            <div class="wizard-feature"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></polyline><polyline points="22 4 12 14.01 9 11.01"></polyline></svg> Optional Spotify integration</div>
+          </div>
+          <div class="wizard-buttons">
+            <button class="btn-primary wizard-btn-next" onclick="wizardNext()">Get Started &rarr;</button>
+          </div>
+        </div>
+
+        <!-- Step 2: Music Directory -->
+        <div class="wizard-step hidden" id="wizard-step-2">
+          <h3 class="wizard-title">Where is your music?</h3>
+          <p class="wizard-subtitle">Tell us where your MP3, FLAC, and other audio files are stored.</p>
+          <div class="wizard-field">
+            <label class="wizard-label" for="wizard-music-dir">Music Folder Path</label>
+            <input type="text" id="wizard-music-dir" placeholder="/home/user/Music" autocomplete="off" aria-label="Music folder path" />
+            <div class="wizard-hint" id="wizard-music-dir-hint">This is the folder where your audio files are stored.</div>
+            <div class="wizard-error" id="wizard-music-dir-error"></div>
+          </div>
+          <div class="wizard-auto-detect" id="wizard-music-auto" style="display:none;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+            <span>Auto-detected: <strong id="wizard-music-auto-path"></strong></span>
+            <button class="wizard-link-btn" onclick="wizardUseAutoMusicDir()">Use this path</button>
+          </div>
+          <div class="wizard-buttons">
+            <button class="btn-secondary wizard-btn-back" onclick="wizardBack()">Back</button>
+            <button class="btn-primary wizard-btn-next" onclick="wizardValidateMusicDir()">Next &rarr;</button>
+          </div>
+        </div>
+
+        <!-- Step 3: Spotify (Optional) -->
+        <div class="wizard-step hidden" id="wizard-step-3">
+          <h3 class="wizard-title">Connect Spotify <span class="wizard-optional">(Optional)</span></h3>
+          <p class="wizard-subtitle">Listen to your Spotify playlists directly in N96_freq. You can skip this and set it up later.</p>
+          <div class="wizard-field">
+            <label class="wizard-checkbox-label">
+              <input type="checkbox" id="wizard-spotify-enable" onchange="wizardToggleSpotifyFields()" />
+              <span>I want to use Spotify</span>
+            </label>
+          </div>
+          <div id="wizard-spotify-fields" class="wizard-spotify-fields hidden">
+            <div class="wizard-field">
+              <label class="wizard-label" for="wizard-spotify-id">Spotify Client ID</label>
+              <input type="text" id="wizard-spotify-id" placeholder="e.g. 1a2b3c4d5e6f7g8h9i0j" autocomplete="off" aria-label="Spotify Client ID" />
+            </div>
+            <div class="wizard-field">
+              <label class="wizard-label" for="wizard-spotify-secret">Spotify Client Secret</label>
+              <input type="password" id="wizard-spotify-secret" placeholder="Your client secret" autocomplete="off" aria-label="Spotify Client Secret" />
+            </div>
+            <button class="wizard-link-btn" onclick="wizardShowSpotifyGuide()">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
+              How do I get these?
+            </button>
+          </div>
+          <div class="wizard-buttons">
+            <button class="btn-secondary wizard-btn-back" onclick="wizardBack()">Back</button>
+            <button class="btn-secondary wizard-btn-skip" onclick="wizardSkip()">Skip</button>
+            <button class="btn-primary wizard-btn-next" onclick="wizardNext()">Next &rarr;</button>
+          </div>
+        </div>
+
+        <!-- Step 4: YouTube / yt-dlp -->
+        <div class="wizard-step hidden" id="wizard-step-4">
+          <h3 class="wizard-title">YouTube Configuration</h3>
+          <p class="wizard-subtitle">N96_freq uses yt-dlp for YouTube features. It's usually auto-detected.</p>
+          <div class="wizard-field">
+            <label class="wizard-label" for="wizard-ytdlp-path">yt-dlp Path</label>
+            <input type="text" id="wizard-ytdlp-path" placeholder="yt-dlp" autocomplete="off" aria-label="yt-dlp path" />
+            <div class="wizard-hint" id="wizard-ytdlp-hint">Leave as "yt-dlp" if it's in your system PATH.</div>
+            <div class="wizard-status" id="wizard-ytdlp-status"></div>
+          </div>
+          <div class="wizard-buttons">
+            <button class="btn-secondary wizard-btn-back" onclick="wizardBack()">Back</button>
+            <button class="btn-primary wizard-btn-next" onclick="wizardNext()">Next &rarr;</button>
+          </div>
+        </div>
+
+        <!-- Step 5: Save & Finish -->
+        <div class="wizard-step hidden" id="wizard-step-5">
+          <h3 class="wizard-title">Ready to go!</h3>
+          <p class="wizard-subtitle">Here's a summary of your configuration.</p>
+          <div class="wizard-summary" id="wizard-summary">
+            <div class="wizard-summary-item" id="wizard-summary-music">
+              <span class="wizard-summary-icon">&#10003;</span>
+              <span class="wizard-summary-label">Music Directory</span>
+              <span class="wizard-summary-value" id="wizard-summary-music-val">—</span>
+            </div>
+            <div class="wizard-summary-item" id="wizard-summary-spotify">
+              <span class="wizard-summary-icon" id="wizard-summary-spotify-icon">&#8212;</span>
+              <span class="wizard-summary-label">Spotify</span>
+              <span class="wizard-summary-value" id="wizard-summary-spotify-val">Not configured</span>
+            </div>
+            <div class="wizard-summary-item" id="wizard-summary-ytdlp">
+              <span class="wizard-summary-icon" id="wizard-summary-ytdlp-icon">&#10003;</span>
+              <span class="wizard-summary-label">yt-dlp</span>
+              <span class="wizard-summary-value" id="wizard-summary-ytdlp-val">—</span>
+            </div>
+          </div>
+          <div class="wizard-save-status hidden" id="wizard-save-status">
+            <div class="spinner"></div>
+            <span>Saving configuration&hellip;</span>
+          </div>
+          <div class="wizard-save-result hidden" id="wizard-save-result"></div>
+          <div class="wizard-buttons">
+            <button class="btn-secondary wizard-btn-back" onclick="wizardBack()">Back</button>
+            <button class="btn-primary wizard-btn-next" id="wizard-save-btn" onclick="wizardSave()">Save Configuration</button>
+            <button class="btn-secondary wizard-btn-test hidden" id="wizard-test-btn" onclick="wizardTest()">Test Connection</button>
+          </div>
+        </div>
+
+        <!-- Close button (X) — only shown after setup is complete or when editing -->
+        <button class="wizard-close-btn" onclick="closeSetupWizard()" title="Close" aria-label="Close">&times;</button>
+      </div>
+    </div>
+
+    <!-- Spotify Guide Sub-modal (v75) -->
+    <div id="spotify-guide-modal" class="modal-overlay hidden" role="dialog" aria-label="Spotify Setup Guide">
+      <div class="modal-content spotify-guide-content">
+        <h3>How to get Spotify credentials</h3>
+        <p style="color:var(--text-secondary);font-size:12px;margin-bottom:16px;">Follow these steps to create a free Spotify developer app.</p>
+        <div class="spotify-guide-steps">
+          <div class="spotify-guide-step">
+            <div class="spotify-guide-step-num">1</div>
+            <div class="spotify-guide-step-body">Go to <a href="https://developer.spotify.com/dashboard" target="_blank" rel="noopener" style="color:var(--accent);">developer.spotify.com/dashboard</a></div>
+          </div>
+          <div class="spotify-guide-step">
+            <div class="spotify-guide-step-num">2</div>
+            <div class="spotify-guide-step-body">Click <strong>"Create App"</strong></div>
+          </div>
+          <div class="spotify-guide-step">
+            <div class="spotify-guide-step-num">3</div>
+            <div class="spotify-guide-step-body">Fill in:<br>
+              <span class="spotify-guide-field">App name:</span> <code>N96_freq</code><br>
+              <span class="spotify-guide-field">Description:</span> <code>My personal music player</code><br>
+              <span class="spotify-guide-field">Redirect URI:</span> <code id="spotify-redirect-uri">http://127.0.0.1:3001/api/spotify/callback</code><br>
+              <span class="spotify-guide-field">Check:</span> <code>Web API</code>
+            </div>
+          </div>
+          <div class="spotify-guide-step">
+            <div class="spotify-guide-step-num">4</div>
+            <div class="spotify-guide-step-body">Click <strong>"Save"</strong></div>
+          </div>
+          <div class="spotify-guide-step">
+            <div class="spotify-guide-step-num">5</div>
+            <div class="spotify-guide-step-body">Copy the <strong>"Client ID"</strong> and paste it into the wizard</div>
+          </div>
+          <div class="spotify-guide-step">
+            <div class="spotify-guide-step-num">6</div>
+            <div class="spotify-guide-step-body">Click <strong>"Show Client Secret"</strong> &rarr; Copy &rarr; Paste into the wizard</div>
+          </div>
+          <div class="spotify-guide-step">
+            <div class="spotify-guide-step-num">7</div>
+            <div class="spotify-guide-step-body done">Done!</div>
+          </div>
+        </div>
+        <div class="modal-buttons">
+          <button class="btn-primary" onclick="closeSpotifyGuide()">I've copied the credentials</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Toast notification -->
+    <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
+  </div>
+
+  <audio id="player"></audio>
+  <script src="https://www.youtube.com/iframe_api"></script>
+  <script src="assets/js/app.js?v=75"></script>
+</body>
+</html>

@@ -1,0 +1,36 @@
+# Dependencies
+node_modules/
+
+# Environment & secrets (NEVER commit)
+.env
+.env.local
+.env.production
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# OS generated files
+.DS_Store
+.DS_Store?
+Thumbs.db
+desktop.ini
+ehthumbs.db
+
+# IDE / Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# yt-dlp binary (users install separately)
+yt-dlp.exe
+yt-dlp
+
+# Build artifacts
+*.tgz
+
+# Test / coverage
+coverage/
