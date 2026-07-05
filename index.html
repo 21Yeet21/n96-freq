@@ -12,7 +12,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@200;300;400;500;600&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="assets/css/style.css?v=75">
+  <link rel="stylesheet" href="assets/css/style.css?v=79">
 </head>
 <body>
   <canvas id="aurora-canvas" aria-hidden="true"></canvas>
@@ -38,6 +38,18 @@
 
       <!-- 2. Scrollable content area for all lists -->
       <div class="sidebar-scroll-area">
+        <!-- MY COLLECTIONS — collapsible, drag & drop folders -->
+        <div class="sidebar-section collapsible" id="collections-section">
+          <div class="sidebar-header collapsible-header" onclick="toggleSidebarSection('collections-section')" role="button" aria-expanded="true" tabindex="0">
+            <span>MY COLLECTIONS</span>
+            <button class="collection-add-btn" onclick="event.stopPropagation(); createCollectionPrompt()" title="Create new collection" aria-label="Create new collection">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+            </button>
+            <span class="chevron" aria-hidden="true">▾</span>
+          </div>
+          <div class="sidebar-list" id="collections-list" role="list"></div>
+        </div>
+
         <!-- PLAYLISTS — collapsible -->
         <div class="sidebar-section collapsible" id="playlists-section">
           <div class="sidebar-header collapsible-header" onclick="toggleSidebarSection('playlists-section')" role="button" aria-expanded="true" tabindex="0">
@@ -598,6 +610,6 @@
 
   <audio id="player"></audio>
   <script src="https://www.youtube.com/iframe_api"></script>
-  <script src="assets/js/app.js?v=75"></script>
+  <script src="assets/js/app.js?v=79"></script>
 </body>
 </html>

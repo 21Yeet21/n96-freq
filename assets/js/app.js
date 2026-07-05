@@ -1,8 +1,8 @@
 /* N96_freq — app.js
-   Version: 75 (Setup Wizard — guided configuration, first-run detection) — fetch, play, auto-advance, shuffle)
+   Version: 79 (Fix inter-collection drag via addEventListener; theme-aware collection styles; button→div for collection items)
    If you see this exact string in DevTools Console, you have the latest version.
    If you don't see it, your browser is loading a STALE cached copy — do Ctrl+Shift+R. */
-console.log("%c[N96] app.js v75 loaded", "color:#7fd1a4;font-weight:bold;");
+console.log("%c[N96] app.js v79 loaded", "color:#7fd1a4;font-weight:bold;");
 
 const $ = function(s) { return document.querySelector(s); };
 const $$ = function(s) { return Array.from(document.querySelectorAll(s)); };
@@ -40,6 +40,10 @@ document.addEventListener('mousemove', function(e) {
 
 
 const N96 = { tracks: [], nowPlaying: null, currentIdx: -1, isPlaying: false, volume: 0.7, shuffleOn: false, repeatMode: "none", activePlaylist: "All", ambientVolume: 0.25, ambientMuted: false, userPaused: false, _lastMediaSessionUpdate: 0, performanceMode: false, ultraMode: false, pomodoro: { isActive: false, currentSession: 1, totalSessions: 4, phase: 'work', timeLeft: 25 * 60, workDuration: 25 * 60, restDuration: 5 * 60, intervalId: null }, stats: { totalListeningTime: 0, tracksPlayed: 0, mostPlayed: {}, recentTracks: [], lastPlayed: null, sessionsToday: 0, _sessionDate: '' } };
+
+/* v76: Debounce for onended — prevents double-fire causing premature advance */
+var _lastEndedTime = 0;
+var _trackStartTime = 0;
 
 /* Theme palettes for the aurora background — each theme has its own
    gradient, wave hues, blob hue, and accent colour. */
@@ -239,7 +243,7 @@ function resetToHome() {
   var sp = $("#spotify-progress");
   if (sp) sp.classList.add("hidden");
 
-  // Collapse all sidebar sections for a clean start
+  // Collapse all accordion sidebar sections for a clean start
   ACCORDION_SECTIONS.forEach(function(id) {
     var el = document.getElementById(id);
     if (el && !el.classList.contains("collapsed")) {
@@ -248,7 +252,12 @@ function resetToHome() {
       if (header) header.setAttribute("aria-expanded", "false");
     }
   });
-  setCollapsedSections(ACCORDION_SECTIONS.slice());
+  // Preserve independent section states (Collections stays open if user had it open)
+  var savedIndependent = INDEPENDENT_SECTIONS.filter(function(id) {
+    var el = document.getElementById(id);
+    return el && el.classList.contains("collapsed");
+  });
+  setCollapsedSections(ACCORDION_SECTIONS.concat(savedIndependent));
 
   // Re-render sidebars to clear active highlights
   renderYtMixesSidebar();
@@ -300,8 +309,29 @@ function restoreTrack(track, savedState) {
       var tr = N96.tracks[idx];
       N96.currentIdx = idx;
       N96.nowPlaying = tr;
+      _trackStartTime = Date.now();  /* v76: Set track start time on restore */
       player.src = "/audio/" + encodeURI(track.path.replace(/\\/g, "/"));
       player.load();
+      /* v76: Always set onended handler on restore — the old handler may be
+         stale or missing, and a restored track needs the same guards. */
+      player.onended = function() {
+        var now = Date.now();
+        if (N96.userPaused) { return; }
+        if (now - _lastEndedTime < 2000) { return; }
+        if (now - _trackStartTime < 5000) { return; }
+        if (player.duration && isFinite(player.duration) &&
+            player.currentTime > 0 && player.currentTime < player.duration - 2) { return; }
+        if (!player.duration || !isFinite(player.duration)) {
+          if (now - _trackStartTime < 30000) { return; }
+        }
+        _lastEndedTime = now;
+        if (N96.repeatMode === "one") {
+          player.currentTime = 0;
+          player.play();
+        } else {
+          playNext();
+        }
+      };
       // Update the Now Playing UI immediately so user sees what was playing
       updateNPUI(tr);
       if (track.position) {
@@ -617,16 +647,38 @@ function updateStats(track) {
   N96.stats.tracksPlayed++;
   N96.stats.lastPlayed = now;
 
+  /* v78: Determine source type for the key */
+  var sourceType = "local";
+  var key, displayName;
+  if (track.isYouTube && track.isSpotify) {
+    sourceType = "spotify";
+    key = "sp_" + (track.videoId || track.spotId || 'unknown');
+    displayName = track.filename || track.title || key;
+  } else if (track.isYouTube) {
+    sourceType = "youtube";
+    key = "yt_" + (track.videoId || 'unknown');
+    displayName = track.filename || track.title || key;
+  } else if (track.path) {
+    sourceType = "local";
+    key = track.path;
+    displayName = track.filename || track.title || key;
+  } else {
+    key = track.videoId || track.filename || 'unknown';
+    displayName = track.filename || track.title || key;
+  }
+
   // Track most played
-  var key = track.path || track.videoId || track.filename || 'unknown';
   N96.stats.mostPlayed[key] = (N96.stats.mostPlayed[key] || 0) + 1;
   N96.stats.mostPlayed._names = N96.stats.mostPlayed._names || {};
-  N96.stats.mostPlayed._names[key] = track.filename || track.title || key;
+  N96.stats.mostPlayed._names[key] = displayName;
+  N96.stats.mostPlayed._sources = N96.stats.mostPlayed._sources || {};
+  N96.stats.mostPlayed._sources[key] = sourceType;
 
   // Recent tracks (keep last 50)
   N96.stats.recentTracks.unshift({
     title: track.filename || track.title || 'Unknown',
     artist: track.author || track.folder || '',
+    source: sourceType,
     time: now
   });
   N96.stats.recentTracks = N96.stats.recentTracks.slice(0, 50);
@@ -660,8 +712,9 @@ function openStatsPanel() {
   // Top played tracks
   var mp = N96.stats.mostPlayed || {};
   var names = mp._names || {};
-  var sorted = Object.keys(mp).filter(function(k) { return k !== '_names'; })
-    .map(function(k) { return { key: k, count: mp[k], name: names[k] || k }; })
+  var sources = mp._sources || {};
+  var sorted = Object.keys(mp).filter(function(k) { return k !== '_names' && k !== '_sources'; })
+    .map(function(k) { return { key: k, count: mp[k], name: names[k] || k, source: sources[k] || 'local' }; })
     .sort(function(a, b) { return b.count - a.count; })
     .slice(0, 10);
 
@@ -670,7 +723,16 @@ function openStatsPanel() {
     topHtml = '<p style="color:var(--text-muted);font-size:12px;">No tracks played yet</p>';
   } else {
     for (var i = 0; i < sorted.length; i++) {
-      topHtml += '<div class="stats-row"><span class="stats-rank">' + (i+1) + '.</span><span class="stats-name">' + esc(sorted[i].name) + '</span><span class="stats-count">' + sorted[i].count + 'x</span></div>';
+      /* v78: Source type icon */
+      var srcIcon = '';
+      if (sorted[i].source === 'youtube') {
+        srcIcon = '<span class="stats-source-icon src-yt" title="YouTube">&#9654;</span>';
+      } else if (sorted[i].source === 'spotify') {
+        srcIcon = '<span class="stats-source-icon src-spotify" title="Spotify">&#9835;</span>';
+      } else {
+        srcIcon = '<span class="stats-source-icon src-local" title="Local">&#9834;</span>';
+      }
+      topHtml += '<div class="stats-row">' + srcIcon + '<span class="stats-rank">' + (i+1) + '.</span><span class="stats-name">' + esc(sorted[i].name) + '</span><span class="stats-count">' + sorted[i].count + 'x</span></div>';
     }
   }
 
@@ -682,7 +744,16 @@ function openStatsPanel() {
   } else {
     for (var i = 0; i < recent.length; i++) {
       var ago = formatTimeAgo(recent[i].time);
-      recentHtml += '<div class="stats-row"><span class="stats-name">' + esc(recent[i].title) + '</span><span class="stats-time">' + ago + '</span></div>';
+      /* v78: Source type icon */
+      var srcIcon = '';
+      if (recent[i].source === 'youtube') {
+        srcIcon = '<span class="stats-source-icon src-yt" title="YouTube">&#9654;</span>';
+      } else if (recent[i].source === 'spotify') {
+        srcIcon = '<span class="stats-source-icon src-spotify" title="Spotify">&#9835;</span>';
+      } else {
+        srcIcon = '<span class="stats-source-icon src-local" title="Local">&#9834;</span>';
+      }
+      recentHtml += '<div class="stats-row">' + srcIcon + '<span class="stats-name">' + esc(recent[i].title) + '</span><span class="stats-time">' + ago + '</span></div>';
     }
   }
 
@@ -913,6 +984,7 @@ function playNow(trackObj, idx) {
   }
   N96.currentIdx = idx;
   N96.userPaused = false;  /* New track = clear pause flag */
+  _trackStartTime = Date.now();  /* v76: Track when playback started */
   player.src = "/audio/" + encodeURI(tr.path.replace(/\\/g, "/"));
   player.load();
   var seekFill = document.getElementById("seek-fill");
@@ -923,11 +995,34 @@ function playNow(trackObj, idx) {
   }).catch(function(e) { showErrorModal("Failed to play track: " + e.message, tr.filename || tr.path); });
   player.onloadedmetadata = function() { N96.duration = player.duration || 0; setTimeout(updateMediaSessionPosition, 300); };
   player.onended = function() {
-    /* Guard: if user explicitly paused, don't auto-advance.
-       Browsers sometimes fire 'ended' when suspending audio on tab hide. */
+    /* v76: Multi-layer guard against premature auto-advance.
+       Browsers can fire spurious 'ended' events when suspending audio
+       on tab hide, during resource management, or due to encodeURI issues. */
+    var now = Date.now();
+
+    /* Guard 1: if user explicitly paused, don't auto-advance */
     if (N96.userPaused) { return; }
-    /* Guard: if track didn't actually reach the end, ignore spurious event */
-    if (player.duration && player.currentTime > 0 && player.currentTime < player.duration - 1) { return; }
+
+    /* Guard 2: Debounce — if onended fired less than 2s ago, ignore duplicate */
+    if (now - _lastEndedTime < 2000) { return; }
+
+    /* Guard 3: Track must have been playing for at least 5 seconds.
+       Prevents spurious ended events that fire immediately after load(). */
+    if (now - _trackStartTime < 5000) { return; }
+
+    /* Guard 4: if track didn't actually reach the end, ignore spurious event.
+       Use a 2-second window (was 1s) for more robustness. */
+    if (player.duration && isFinite(player.duration) &&
+        player.currentTime > 0 && player.currentTime < player.duration - 2) { return; }
+
+    /* Guard 5: If we have no duration info, check that we've been playing
+       long enough — at least 30s before allowing auto-advance. */
+    if (!player.duration || !isFinite(player.duration)) {
+      if (now - _trackStartTime < 30000) { return; }
+    }
+
+    _lastEndedTime = now;
+
     if (N96.repeatMode === "one") {
       player.currentTime = 0;
       player.play();
@@ -1290,8 +1385,11 @@ function playPrev() {
 function playNext() {
   /* Guard: never auto-advance right after user paused — browser may fire
      spurious onended during/after pause(). Also guard if track hasn't ended. */
-  if (N96.userPaused) { N96.userPaused = false; return; }
-  if (!N96.isPlaying && player.duration && player.currentTime < player.duration - 2) { return; }
+  if (N96.userPaused) { return; }
+  /* v76: Extra guard — if called from a non-ended context (e.g. keyboard shortcut
+     clicking next), userPaused is false, so check if the track actually played
+     enough before advancing from a potentially spurious trigger. */
+  if (!N96.isPlaying && player.duration && isFinite(player.duration) && player.currentTime < player.duration - 2) { return; }
   if (spotifyState.activePlaylistId) { spotifyAdvance(1); return; }
   // v74: YouTube Playlist next
   if (ytPlaylistState.active) {
@@ -1824,7 +1922,7 @@ function handleVisibilityChange() {
 document.addEventListener("DOMContentLoaded", function() {
   var saved = localStorage.getItem("n96-theme"); if(saved) document.documentElement.setAttribute("data-theme",saved);
   updateAuroraTheme(); initAurora(); setupSeekSlider(); loadTracks().then(function() { loadSavedState(); applyPerformanceMode(); applyUltraMode(); });
-  applySidebarCollapseState(); renderYtMixesSidebar(); initSpotify();
+  applySidebarCollapseState(); renderCollectionsSidebar(); renderYtMixesSidebar(); initSpotify();
   // v75: Check if first run — auto-show Setup Wizard
   checkFirstRun();
 
@@ -2467,11 +2565,17 @@ function showCenterView(view) {
 /* ═══════════════════════════════════════════════════════════════
    SIDEBAR — strict 3-way accordion (PLAYLISTS / YOUTUBE MIXES / SPOTIFY)
    Expanding any one of the three collapsibles collapses the other two.
+   MY COLLECTIONS is independent — it toggles on its own, never auto-collapsed
+   by the accordion. This lets users keep it open as a drop target.
    EXTERNAL SOURCES is always expanded (not part of the accordion).
    Collapse state persisted in localStorage key: n96-sidebar-collapsed
    ═══════════════════════════════════════════════════════════════ */
 var SIDEBAR_COLLAPSED_KEY = "n96-sidebar-collapsed";
+/* Accordion sections — only these three auto-collapse each other.
+   Collections is separate so it stays open as a drag-drop target. */
 var ACCORDION_SECTIONS = ["playlists-section", "yt-mixes-section", "spotify-section"];
+/* Independent section — toggles on its own, not part of the accordion. */
+var INDEPENDENT_SECTIONS = ["collections-section"];
 
 function getCollapsedSections() {
   try {
@@ -2484,16 +2588,28 @@ function setCollapsedSections(arr) {
   try { localStorage.setItem(SIDEBAR_COLLAPSED_KEY, JSON.stringify(arr)); } catch(_) {}
 }
 
-/* Strict 3-way accordion: expanding one collapses the other two. */
+/* Toggle a sidebar section. Accordion sections auto-collapse each other.
+   Independent sections (like Collections) simply toggle without affecting others. */
 function toggleSidebarSection(sectionId) {
-  if (ACCORDION_SECTIONS.indexOf(sectionId) === -1) return;
+  var isAccordion = ACCORDION_SECTIONS.indexOf(sectionId) !== -1;
+  var isIndependent = INDEPENDENT_SECTIONS.indexOf(sectionId) !== -1;
+  if (!isAccordion && !isIndependent) return;
   var el = document.getElementById(sectionId);
   if (!el) return;
   var collapsed = getCollapsedSections();
   var isCurrentlyCollapsed = collapsed.indexOf(sectionId) !== -1;
 
-  if (isCurrentlyCollapsed) {
-    // Expanding this one → collapse the other two
+  if (isIndependent) {
+    /* Independent sections just toggle themselves — no accordion effect */
+    if (isCurrentlyCollapsed) {
+      collapsed.splice(collapsed.indexOf(sectionId), 1);
+      el.classList.remove("collapsed");
+    } else {
+      collapsed.push(sectionId);
+      el.classList.add("collapsed");
+    }
+  } else if (isCurrentlyCollapsed) {
+    // Expanding an accordion section → collapse the other accordion sections
     collapsed.splice(collapsed.indexOf(sectionId), 1);
     el.classList.remove("collapsed");
     for (var i = 0; i < ACCORDION_SECTIONS.length; i++) {
@@ -2517,6 +2633,12 @@ function toggleSidebarSection(sectionId) {
 function applySidebarCollapseState() {
   var collapsed = getCollapsedSections();
   ACCORDION_SECTIONS.forEach(function(id) {
+    var el = document.getElementById(id);
+    if (!el) return;
+    if (collapsed.indexOf(id) !== -1) el.classList.add("collapsed");
+    else el.classList.remove("collapsed");
+  });
+  INDEPENDENT_SECTIONS.forEach(function(id) {
     var el = document.getElementById(id);
     if (!el) return;
     if (collapsed.indexOf(id) !== -1) el.classList.add("collapsed");
@@ -2657,6 +2779,7 @@ function renderYtMixesSidebar() {
     list.appendChild(item);
   }
   refreshMissingMixMetadata();
+  makeSidebarItemsDraggable();
 }
 
 function refreshMissingMixMetadata() {
@@ -3004,6 +3127,8 @@ function playYouTube(video) {
     author: video.author
   };
   updateMediaSession();
+  /* v78: Track YouTube plays in statistics */
+  updateStats(N96.nowPlaying);
   N96.currentIdx = -1;
   N96.duration = 0;
   // v73: Update ultra track info and track counter for YouTube
@@ -3028,6 +3153,8 @@ function playYouTube(video) {
 
   // v20: Re-render sidebar to highlight the active mix
   renderYtMixesSidebar();
+  /* v78: Also update collections sidebar to highlight the active item */
+  renderCollectionsSidebar();
 }
 
 
@@ -3535,6 +3662,7 @@ function renderSpotifySidebar() {
     })(p);
     list.appendChild(item);
   }
+  makeSidebarItemsDraggable();
 }
 
 /* ── Refresh-all metadata ── */
@@ -4216,9 +4344,12 @@ async function playSpotifyTrack(track, myToken) {
     isYouTube: true,
     isSpotify: true,
     videoId: videoId,
+    spotId: track.spotId,
     author: track.artist
   };
   updateMediaSession();
+  /* v78: Track Spotify plays in statistics */
+  updateStats(N96.nowPlaying);
   updateSpotifyProgress("Track " + pos + "/" + total);
   // v73: Update ultra track info and track counter for Spotify
   updateUltraTrackInfo();
@@ -4237,6 +4368,9 @@ async function playSpotifyTrack(track, myToken) {
 
   // Prefetch next 3 tracks (prioritize upcoming)
   prefetchNextTracks(spotifyState.currentIdx);
+
+  /* v78: Update collections sidebar to highlight the active Spotify playlist */
+  renderCollectionsSidebar();
 }
 
 /* ── Update Spotify progress badge ── */
@@ -4375,7 +4509,7 @@ window.n96.help = function() {
     "background:#0d1535;color:#7fd1a4;padding:4px 8px;border-radius:4px;font-weight:bold", ""
   );
 };
-window.n96.version = "v67";
+window.n96.version = "v79";
 
 /* ── Pomodoro Timer (v54) ─────────────────────────────────── */
 
@@ -4829,6 +4963,685 @@ function updatePlaylistModalHighlight() {
 
 
 /* ═══════════════════════════════════════════════════════════════
+   v76: My Collections — virtual folders for organizing mixes & playlists
+   v77: Inter-collection drag & drop, rename, restore-to-playlists button
+   Drag & Drop from YouTube Mixes / Spotify Playlists into custom groups.
+   Also supports dragging items BETWEEN collections.
+   Persisted in localStorage under N96_COLLECTIONS_KEY.
+   ═══════════════════════════════════════════════════════════════ */
+var N96_COLLECTIONS_KEY = "n96-collections";
+
+/* Collection data structure:
+   { id: "col_<timestamp>", name: "Chill Vibes", items: [
+     { type: "youtube", id: "dQw4w9WgXcQ", title: "Rick Astley - Never..." },
+     { type: "spotify", id: "37i9dQZF1DXcBWIGoYBM5M", title: "Today's Top Hits" }
+   ]}
+
+   v77 additions:
+   - Inter-collection drag: collection items are draggable to other collections
+   - Rename: inline rename via edit icon on collection header
+   - Restore: per-collection button that re-adds items to their original
+     playlist sections (YouTube Mixes / Spotify Playlists)
+*/
+
+function loadCollections() {
+  try {
+    var raw = localStorage.getItem(N96_COLLECTIONS_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch(_) { return []; }
+}
+
+function saveCollections(collections) {
+  try { localStorage.setItem(N96_COLLECTIONS_KEY, JSON.stringify(collections)); } catch(_) {}
+}
+
+function createCollectionPrompt() {
+  /* Inline prompt — no alert/prompt allowed. Create a temporary input. */
+  var list = document.getElementById("collections-list");
+  if (!list) return;
+
+  /* Check if there's already an open input */
+  if (list.querySelector(".collection-create-input")) return;
+
+  var wrapper = document.createElement("div");
+  wrapper.className = "collection-create-row";
+  wrapper.innerHTML =
+    '<input type="text" class="collection-create-input" placeholder="Collection name…" maxlength="40" autofocus />' +
+    '<button class="collection-create-ok" title="Create" aria-label="Create collection">' +
+      '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>' +
+    '</button>' +
+    '<button class="collection-create-cancel" title="Cancel" aria-label="Cancel">' +
+      '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>' +
+    '</button>';
+
+  list.insertBefore(wrapper, list.firstChild);
+
+  var input = wrapper.querySelector(".collection-create-input");
+  var okBtn = wrapper.querySelector(".collection-create-ok");
+  var cancelBtn = wrapper.querySelector(".collection-create-cancel");
+
+  function doCreate() {
+    var name = (input.value || "").trim();
+    if (!name) { wrapper.remove(); return; }
+    var collections = loadCollections();
+    /* Prevent duplicate names */
+    for (var i = 0; i < collections.length; i++) {
+      if (collections[i].name.toLowerCase() === name.toLowerCase()) {
+        showToast('Collection "' + name + '" already exists');
+        input.focus();
+        return;
+      }
+    }
+    collections.push({ id: "col_" + Date.now(), name: name, items: [] });
+    saveCollections(collections);
+    renderCollectionsSidebar();
+    showToast('Collection "' + name + '" created');
+  }
+
+  function doCancel() { wrapper.remove(); }
+
+  okBtn.addEventListener("click", function(e) { e.stopPropagation(); doCreate(); });
+  cancelBtn.addEventListener("click", function(e) { e.stopPropagation(); doCancel(); });
+  input.addEventListener("keydown", function(e) {
+    if (e.key === "Enter") doCreate();
+    if (e.key === "Escape") doCancel();
+  });
+  input.focus();
+}
+
+function renderCollectionsSidebar() {
+  var list = document.getElementById("collections-list");
+  if (!list) return;
+  var collections = loadCollections();
+
+  /* Preserve any open create-input row */
+  var createRow = list.querySelector(".collection-create-row");
+  /* v77: preserve any open rename-input row */
+  var renameRow = list.querySelector(".collection-rename-row");
+  list.innerHTML = "";
+  if (createRow) list.appendChild(createRow);
+
+  if (collections.length === 0 && !createRow) {
+    var hint = document.createElement("div");
+    hint.className = "collection-hint";
+    hint.textContent = "Create a collection, then drag mixes & playlists here";
+    list.appendChild(hint);
+    return;
+  }
+
+  for (var c = 0; c < collections.length; c++) {
+    (function(col) {
+      var colEl = document.createElement("div");
+      colEl.className = "collection-folder";
+      colEl.setAttribute("data-collection-id", col.id);
+
+      /* v79: Use addEventListener instead of HTML attributes for reliable drag handling */
+      (function(collectionId) {
+        colEl.addEventListener("dragover", function(e) {
+          handleCollectionDragOver(e, collectionId);
+        });
+        colEl.addEventListener("dragleave", function(e) {
+          handleCollectionDragLeave(e, collectionId);
+        });
+        colEl.addEventListener("drop", function(e) {
+          handleCollectionDrop(e, collectionId);
+        });
+      })(col.id);
+
+      /* Header row */
+      var header = document.createElement("div");
+      header.className = "collection-header";
+      header.innerHTML =
+        '<span class="collection-icon">' +
+          '<svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>' +
+        '</span>' +
+        '<span class="collection-name">' + esc(col.name) + '</span>' +
+        '<span class="collection-count">(' + col.items.length + ')</span>' +
+        /* v77: Restore button — puts collection items back into their playlist sections */
+        '<span class="collection-restore" title="Restore items to their playlists">' +
+          '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"></polyline><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path></svg>' +
+        '</span>' +
+        /* v77: Rename button */
+        '<span class="collection-rename" title="Rename collection">' +
+          '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>' +
+        '</span>' +
+        '<span class="collection-delete" title="Delete collection">' +
+          '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>' +
+        '</span>';
+
+      header.addEventListener("click", function(e) {
+        if (e.target.closest(".collection-delete")) {
+          e.stopPropagation();
+          deleteCollection(col.id);
+          return;
+        }
+        if (e.target.closest(".collection-rename")) {
+          e.stopPropagation();
+          startRenameCollection(col.id, col.name, header);
+          return;
+        }
+        if (e.target.closest(".collection-restore")) {
+          e.stopPropagation();
+          restoreCollectionToPlaylists(col.id);
+          return;
+        }
+        /* Toggle expand/collapse */
+        colEl.classList.toggle("expanded");
+      });
+
+      colEl.appendChild(header);
+
+      /* v77: If this collection has a pending rename, insert the rename input */
+      if (renameRow && renameRow.getAttribute("data-collection-id") === col.id) {
+        colEl.appendChild(renameRow);
+        colEl.classList.add("expanded");
+        /* Re-attach events and focus */
+        var rInput = renameRow.querySelector(".collection-rename-input");
+        if (rInput) setTimeout(function(){ rInput.focus(); rInput.select(); }, 0);
+      }
+
+      /* Items list (hidden by default, shown when expanded) */
+      var itemsList = document.createElement("div");
+      itemsList.className = "collection-items";
+
+      for (var i = 0; i < col.items.length; i++) {
+        (function(item, idx) {
+          var itemEl = document.createElement("div");
+          itemEl.className = "collection-item " + (item.type === "youtube" ? "item-yt" : "item-spotify");
+          /* v78: Highlight the currently playing item in collections */
+          var isActiveItem = false;
+          if (N96.nowPlaying) {
+            if (item.type === "youtube" && N96.nowPlaying.isYouTube && !N96.nowPlaying.isSpotify && N96.nowPlaying.videoId === item.id) {
+              isActiveItem = true;
+            } else if (item.type === "spotify" && spotifyState.activePlaylistId === item.id) {
+              isActiveItem = true;
+            }
+          }
+          if (isActiveItem) itemEl.classList.add("active");
+          /* v77: make collection items draggable to other collections */
+          itemEl.setAttribute("draggable", "true");
+          itemEl.setAttribute("data-item-type", item.type);
+          itemEl.setAttribute("data-item-id", item.id);
+          itemEl.setAttribute("data-item-title", item.title || "");
+          itemEl.setAttribute("data-source-collection", col.id);
+          itemEl.setAttribute("data-item-idx", idx);
+
+          var icon = item.type === "youtube"
+            ? '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"></path><circle cx="6" cy="18" r="3"></circle><circle cx="18" cy="16" r="3"></circle></svg>'
+            : '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><circle cx="8" cy="10" r="1" fill="currentColor"></circle><circle cx="12" cy="9" r="1" fill="currentColor"></circle><circle cx="16" cy="10" r="1" fill="currentColor"></circle></svg>';
+          itemEl.innerHTML =
+            '<span class="collection-item-icon">' + icon + '</span>' +
+            '<span class="collection-item-name">' + esc(item.title || item.id) + '</span>' +
+            '<span class="collection-item-remove" title="Remove from collection">' +
+              '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>' +
+            '</span>';
+
+          /* v77: Drag start — for inter-collection drag */
+          itemEl.addEventListener("dragstart", function(e) {
+            var dragInfo = {
+              source: "collection-item",
+              sourceCollectionId: col.id,
+              itemIdx: idx,
+              type: item.type,
+              id: item.id,
+              title: item.title || ""
+            };
+            e.dataTransfer.setData("text/plain", JSON.stringify(dragInfo));
+            e.dataTransfer.effectAllowed = "move";
+            /* Highlight all OTHER collection drop zones */
+            document.querySelectorAll(".collection-folder").forEach(function(el) {
+              if (el.getAttribute("data-collection-id") !== col.id) {
+                el.classList.add("collection-drag-active");
+              }
+            });
+          });
+          itemEl.addEventListener("dragend", function(e) {
+            document.querySelectorAll(".collection-folder").forEach(function(el) {
+              el.classList.remove("collection-drag-active");
+              el.classList.remove("collection-drag-over");
+            });
+          });
+
+          itemEl.addEventListener("click", function(e) {
+            if (e.target.closest(".collection-item-remove")) {
+              e.stopPropagation();
+              removeFromCollection(col.id, idx);
+              return;
+            }
+            playCollectionItem(item);
+          });
+
+          itemsList.appendChild(itemEl);
+        })(col.items[i], i);
+      }
+
+      /* Drop zone hint (visible when dragging over) */
+      var dropHint = document.createElement("div");
+      dropHint.className = "collection-drop-hint";
+      dropHint.textContent = "Drop here to add";
+      itemsList.appendChild(dropHint);
+
+      colEl.appendChild(itemsList);
+      list.appendChild(colEl);
+    })(collections[c]);
+  }
+}
+
+function deleteCollection(colId) {
+  var collections = loadCollections();
+  var name = "";
+  for (var i = 0; i < collections.length; i++) {
+    if (collections[i].id === colId) { name = collections[i].name; collections.splice(i, 1); break; }
+  }
+  saveCollections(collections);
+  renderCollectionsSidebar();
+  if (name) showToast('Collection "' + name + '" deleted');
+}
+
+function removeFromCollection(colId, itemIdx) {
+  var collections = loadCollections();
+  for (var i = 0; i < collections.length; i++) {
+    if (collections[i].id === colId) {
+      var removed = collections[i].items.splice(itemIdx, 1);
+      break;
+    }
+  }
+  saveCollections(collections);
+  renderCollectionsSidebar();
+}
+
+function playCollectionItem(item) {
+  if (item.type === "youtube") {
+    /* Look up the mix to get full metadata */
+    var mixes = loadMixes();
+    var mix = null;
+    for (var i = 0; i < mixes.length; i++) {
+      if (mixes[i].id === item.id) { mix = mixes[i]; break; }
+    }
+    if (mix) {
+      playYouTube({ id: mix.id, title: mixDisplayName(mix), author: mix.author || "", duration: mix.duration || "" });
+    } else {
+      playYouTube({ id: item.id, title: item.title || "YouTube Mix", author: "", duration: "" });
+    }
+  } else if (item.type === "spotify") {
+    /* Look up the Spotify playlist for full metadata */
+    var playlists = loadSpotifyPlaylists();
+    var pl = null;
+    for (var i = 0; i < playlists.length; i++) {
+      if (playlists[i].id === item.id) { pl = playlists[i]; break; }
+    }
+    if (pl) {
+      playSpotifyPlaylist(pl);
+    } else {
+      showToast("Spotify playlist not found — it may have been removed");
+    }
+  }
+}
+
+/* ── Drag & Drop Handlers ── */
+
+/* Called from ondragstart on mix-item and spotify-item elements */
+function handleMixDragStart(e) {
+  var type = "youtube";
+  var id = "";
+  var title = "";
+
+  var mixItem = e.target.closest(".mix-item");
+  var spItem = e.target.closest(".spotify-item");
+
+  if (mixItem) {
+    type = "youtube";
+    id = mixItem.getAttribute("data-id") || "";
+    title = mixItem.querySelector(".mix-name") ? mixItem.querySelector(".mix-name").textContent : "";
+  } else if (spItem) {
+    type = "spotify";
+    id = spItem.getAttribute("data-id") || "";
+    title = spItem.querySelector(".spotify-name") ? spItem.querySelector(".spotify-name").textContent : "";
+  }
+
+  if (!id) return;
+
+  e.dataTransfer.setData("text/plain", JSON.stringify({ type: type, id: id, title: title }));
+  e.dataTransfer.effectAllowed = "copy";
+
+  /* Highlight all collection drop zones */
+  document.querySelectorAll(".collection-folder").forEach(function(el) {
+    el.classList.add("collection-drag-active");
+  });
+}
+
+function handleMixDragEnd(e) {
+  /* Remove all drag highlights */
+  document.querySelectorAll(".collection-folder").forEach(function(el) {
+    el.classList.remove("collection-drag-active");
+    el.classList.remove("collection-drag-over");
+  });
+}
+
+function handleCollectionDragOver(e, colId) {
+  e.preventDefault();
+  /* Determine the appropriate drop effect based on drag source */
+  var raw = e.dataTransfer.types && e.dataTransfer.types.length > 0 ? "move" : "copy";
+  e.dataTransfer.dropEffect = raw;
+  /* Guard: e.target may be a text node during drag, which has no closest() */
+  var folder = (e.target instanceof Element) ? e.target.closest(".collection-folder") : null;
+  if (!folder) folder = document.querySelector('[data-collection-id="' + colId + '"]');
+  if (folder) {
+    folder.classList.add("collection-drag-over");
+    /* Auto-expand on hover */
+    if (!folder.classList.contains("expanded")) {
+      folder.classList.add("expanded");
+    }
+  }
+}
+
+function handleCollectionDragLeave(e, colId) {
+  /* Guard: e.target may be a text node during drag, which has no closest() */
+  var folder = (e.target instanceof Element) ? e.target.closest(".collection-folder") : null;
+  if (!folder) folder = document.querySelector('[data-collection-id="' + colId + '"]');
+  if (folder) {
+    /* Only remove if we're truly leaving the folder (not entering a child) */
+    if (!e.relatedTarget || !folder.contains(e.relatedTarget)) {
+      folder.classList.remove("collection-drag-over");
+    }
+  }
+}
+
+function handleCollectionDrop(e, colId) {
+  e.preventDefault();
+  /* Guard: e.target may be a text node during drag, which has no closest() */
+  var folder = (e.target instanceof Element) ? e.target.closest(".collection-folder") : null;
+  if (!folder) folder = document.querySelector('[data-collection-id="' + colId + '"]');
+  if (folder) folder.classList.remove("collection-drag-over");
+  document.querySelectorAll(".collection-folder").forEach(function(el) {
+    el.classList.remove("collection-drag-active");
+  });
+
+  var raw = e.dataTransfer.getData("text/plain");
+  if (!raw) return;
+
+  try {
+    var dragData = JSON.parse(raw);
+  } catch(_) { return; }
+
+  if (!dragData.type || !dragData.id) return;
+
+  var collections = loadCollections();
+  var col = null;
+  for (var i = 0; i < collections.length; i++) {
+    if (collections[i].id === colId) { col = collections[i]; break; }
+  }
+  if (!col) return;
+
+  /* v77: Handle inter-collection drag (move from one collection to another) */
+  if (dragData.source === "collection-item" && dragData.sourceCollectionId) {
+    /* Don't drop on the same collection */
+    if (dragData.sourceCollectionId === colId) return;
+
+    /* Find source collection and remove the item */
+    var sourceCol = null;
+    for (var s = 0; s < collections.length; s++) {
+      if (collections[s].id === dragData.sourceCollectionId) { sourceCol = collections[s]; break; }
+    }
+    if (sourceCol && typeof dragData.itemIdx === "number") {
+      /* Remove from source */
+      sourceCol.items.splice(dragData.itemIdx, 1);
+    }
+
+    /* Check for duplicate in target */
+    for (var j = 0; j < col.items.length; j++) {
+      if (col.items[j].type === dragData.type && col.items[j].id === dragData.id) {
+        saveCollections(collections);
+        renderCollectionsSidebar();
+        showToast("Already in " + col.name + " — moved from " + (sourceCol ? sourceCol.name : "source"));
+        return;
+      }
+    }
+
+    col.items.push({ type: dragData.type, id: dragData.id, title: dragData.title || "" });
+    saveCollections(collections);
+    renderCollectionsSidebar();
+    if (sourceCol) {
+      showToast("Moved from " + sourceCol.name + " to " + col.name);
+    } else {
+      showToast("Added to " + col.name);
+    }
+    return;
+  }
+
+  /* Original: Drop from sidebar (YouTube Mix / Spotify playlist) */
+  /* Check for duplicate */
+  for (var j = 0; j < col.items.length; j++) {
+    if (col.items[j].type === dragData.type && col.items[j].id === dragData.id) {
+      showToast("Already in " + col.name);
+      return;
+    }
+  }
+
+  col.items.push({ type: dragData.type, id: dragData.id, title: dragData.title || "" });
+  saveCollections(collections);
+  renderCollectionsSidebar();
+  showToast("Added to " + col.name);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   v77: Collection Rename — inline edit input
+   ═══════════════════════════════════════════════════════════════ */
+function startRenameCollection(colId, currentName, headerEl) {
+  /* Check if there's already a rename input open */
+  var existing = document.querySelector(".collection-rename-row");
+  if (existing) existing.remove();
+
+  var colEl = headerEl.closest(".collection-folder");
+  if (!colEl) return;
+
+  var wrapper = document.createElement("div");
+  wrapper.className = "collection-rename-row";
+  wrapper.setAttribute("data-collection-id", colId);
+  wrapper.innerHTML =
+    '<input type="text" class="collection-rename-input" value="' + esc(currentName).replace(/"/g, '&quot;') + '" maxlength="40" />' +
+    '<button class="collection-rename-ok" title="Save" aria-label="Save rename">' +
+      '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>' +
+    '</button>' +
+    '<button class="collection-rename-cancel" title="Cancel" aria-label="Cancel rename">' +
+      '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>' +
+    '</button>';
+
+  /* Insert after the header, before the items list */
+  var itemsList = colEl.querySelector(".collection-items");
+  if (itemsList) {
+    colEl.insertBefore(wrapper, itemsList);
+  } else {
+    colEl.appendChild(wrapper);
+  }
+
+  var input = wrapper.querySelector(".collection-rename-input");
+  var okBtn = wrapper.querySelector(".collection-rename-ok");
+  var cancelBtn = wrapper.querySelector(".collection-rename-cancel");
+
+  function doRename() {
+    var newName = (input.value || "").trim();
+    if (!newName || newName === currentName) {
+      wrapper.remove();
+      return;
+    }
+    /* Check for duplicate names */
+    var collections = loadCollections();
+    for (var i = 0; i < collections.length; i++) {
+      if (collections[i].id !== colId && collections[i].name.toLowerCase() === newName.toLowerCase()) {
+        showToast('Collection "' + newName + '" already exists');
+        input.focus();
+        input.select();
+        return;
+      }
+    }
+    /* Apply rename */
+    for (var i = 0; i < collections.length; i++) {
+      if (collections[i].id === colId) {
+        collections[i].name = newName;
+        break;
+      }
+    }
+    saveCollections(collections);
+    /* Remove the rename row BEFORE re-rendering, otherwise renderCollectionsSidebar
+       preserves it and re-inserts it into the DOM */
+    wrapper.remove();
+    renderCollectionsSidebar();
+    showToast('Renamed to "' + newName + '"');
+  }
+
+  function doCancel() { wrapper.remove(); }
+
+  okBtn.addEventListener("click", function(e) { e.stopPropagation(); doRename(); });
+  cancelBtn.addEventListener("click", function(e) { e.stopPropagation(); doCancel(); });
+  input.addEventListener("keydown", function(e) {
+    if (e.key === "Enter") doRename();
+    if (e.key === "Escape") doCancel();
+    e.stopPropagation();
+  });
+  /* Prevent header click from toggling expand while typing */
+  input.addEventListener("click", function(e) { e.stopPropagation(); });
+
+  input.focus();
+  input.select();
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   v77: Restore Collection to Playlists
+   Re-adds items from a collection back into their original
+   playlist sections (YouTube Mixes / Spotify Playlists).
+   Items that already exist in the target section are skipped.
+   The collection itself is NOT deleted.
+   ═══════════════════════════════════════════════════════════════ */
+function restoreCollectionToPlaylists(colId) {
+  var collections = loadCollections();
+  var col = null;
+  for (var i = 0; i < collections.length; i++) {
+    if (collections[i].id === colId) { col = collections[i]; break; }
+  }
+  if (!col || col.items.length === 0) {
+    showToast("Collection is empty — nothing to restore");
+    return;
+  }
+
+  var ytRestored = 0;
+  var ytSkipped = 0;
+  var spRestored = 0;
+  var spSkipped = 0;
+
+  /* Restore YouTube items */
+  var mixes = loadMixes();
+  for (var i = 0; i < col.items.length; i++) {
+    var item = col.items[i];
+    if (item.type !== "youtube") continue;
+    /* Check if already in mixes */
+    var exists = false;
+    for (var m = 0; m < mixes.length; m++) {
+      if (mixes[m].id === item.id) { exists = true; break; }
+    }
+    if (exists) {
+      ytSkipped++;
+      continue;
+    }
+    /* Re-add the mix */
+    mixes.push({
+      id: item.id,
+      name: "",
+      title: item.title || "",
+      author: "",
+      thumbnail: "",
+      duration: "",
+      addedAt: Date.now() + i
+    });
+    ytRestored++;
+  }
+  if (ytRestored > 0) saveMixes(mixes);
+
+  /* Restore Spotify items */
+  var playlists = loadSpotifyPlaylists();
+  for (var i = 0; i < col.items.length; i++) {
+    var item = col.items[i];
+    if (item.type !== "spotify") continue;
+    /* Check if already in playlists */
+    var exists = false;
+    for (var p = 0; p < playlists.length; p++) {
+      if (playlists[p].id === item.id) { exists = true; break; }
+    }
+    if (exists) {
+      spSkipped++;
+      continue;
+    }
+    /* Re-add the playlist */
+    playlists.push({
+      id: item.id,
+      name: item.title || "",
+      title: item.title || "",
+      owner: "",
+      image: "",
+      total_tracks: 0,
+      spotify_url: "https://open.spotify.com/playlist/" + item.id,
+      addedAt: Date.now() + i
+    });
+    spRestored++;
+  }
+  if (spRestored > 0) {
+    saveSpotifyPlaylists(playlists);
+    /* Try to refresh metadata for newly restored playlists */
+    for (var i = 0; i < col.items.length; i++) {
+      var item = col.items[i];
+      if (item.type === "spotify") {
+        refreshSpotifyPlaylistMetadata(item.id);
+      }
+    }
+  }
+
+  /* Refresh YouTube metadata for restored mixes */
+  if (ytRestored > 0) {
+    refreshMissingMixMetadata();
+  }
+
+  /* Re-render sidebars */
+  renderYtMixesSidebar();
+  renderSpotifySidebar();
+
+  /* Build summary toast */
+  var parts = [];
+  if (ytRestored > 0) parts.push(ytRestored + " YouTube mix" + (ytRestored > 1 ? "es" : ""));
+  if (spRestored > 0) parts.push(spRestored + " Spotify playlist" + (spRestored > 1 ? "s" : ""));
+  var skippedParts = [];
+  if (ytSkipped > 0) skippedParts.push(ytSkipped + " YT already present");
+  if (spSkipped > 0) skippedParts.push(spSkipped + " Spotify already present");
+
+  var msg = "";
+  if (parts.length > 0) {
+    msg = "Restored " + parts.join(" & ");
+    if (skippedParts.length > 0) msg += " (" + skippedParts.join(", ") + ")";
+  } else {
+    msg = "All items already in their playlists";
+  }
+  showToast(msg);
+}
+
+/* ── Make existing sidebar items draggable ── */
+function makeSidebarItemsDraggable() {
+  /* YouTube Mix items */
+  document.querySelectorAll(".mix-item").forEach(function(el) {
+    el.setAttribute("draggable", "true");
+    el.addEventListener("dragstart", handleMixDragStart);
+    el.addEventListener("dragend", handleMixDragEnd);
+  });
+
+  /* Spotify playlist items */
+  document.querySelectorAll(".spotify-item").forEach(function(el) {
+    el.setAttribute("draggable", "true");
+    el.addEventListener("dragstart", handleMixDragStart);
+    el.addEventListener("dragend", handleMixDragEnd);
+  });
+}
+
+
+
+/* ═══════════════════════════════════════════════════════════════
    v75: Setup Wizard — guided configuration for new users
    Multi-step modal: Welcome → Music Dir → Spotify → yt-dlp → Save
    ═══════════════════════════════════════════════════════════════ */
@@ -5187,4 +6000,10 @@ window.wizardShowSpotifyGuide = wizardShowSpotifyGuide;
 window.closeSpotifyGuide = closeSpotifyGuide;
 window.wizardSave = wizardSave;
 window.wizardTest = wizardTest;
+window.createCollectionPrompt = createCollectionPrompt;
+window.handleCollectionDragOver = handleCollectionDragOver;
+window.handleCollectionDragLeave = handleCollectionDragLeave;
+window.handleCollectionDrop = handleCollectionDrop;
+window.startRenameCollection = startRenameCollection;
+window.restoreCollectionToPlaylists = restoreCollectionToPlaylists;
 
