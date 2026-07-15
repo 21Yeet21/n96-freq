@@ -751,6 +751,29 @@ body.ultra-mode #ultra-track-overlay.hidden {
   transform: scale(0.95);
 }
 
+/* v80: Pomodoro button color states */
+#pomodoro-btn.pomo-active {
+  color: var(--accent);
+  opacity: 1;
+}
+#pomodoro-btn.pomo-active:hover {
+  color: var(--accent);
+}
+#pomodoro-btn.pomo-paused {
+  color: #f0a050;
+  opacity: 0.9;
+}
+#pomodoro-btn.pomo-paused:hover {
+  color: #f0a050;
+}
+#pomodoro-btn.pomo-rest {
+  color: #64b5f6;
+  opacity: 1;
+}
+#pomodoro-btn.pomo-rest:hover {
+  color: #64b5f6;
+}
+
 .ctrl-play {
   width: 36px !important;
   height: 36px !important;

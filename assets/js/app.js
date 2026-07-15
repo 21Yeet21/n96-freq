@@ -1,8 +1,8 @@
 /* N96_freq — app.js
-   Version: 79 (Fix inter-collection drag via addEventListener; theme-aware collection styles; button→div for collection items)
+   Version: 81 (Fix performance/ultra mode stopping music; fix play/pause desync; pomodoro button colors)
    If you see this exact string in DevTools Console, you have the latest version.
    If you don't see it, your browser is loading a STALE cached copy — do Ctrl+Shift+R. */
-console.log("%c[N96] app.js v79 loaded", "color:#7fd1a4;font-weight:bold;");
+console.log("%c[N96] app.js v81 loaded", "color:#7fd1a4;font-weight:bold;");
 
 const $ = function(s) { return document.querySelector(s); };
 const $$ = function(s) { return Array.from(document.querySelectorAll(s)); };
@@ -310,7 +310,11 @@ function restoreTrack(track, savedState) {
       N96.currentIdx = idx;
       N96.nowPlaying = tr;
       _trackStartTime = Date.now();  /* v76: Set track start time on restore */
-      player.src = "/audio/" + encodeURI(track.path.replace(/\\/g, "/"));
+      /* v79: Use encodeURIComponent per segment instead of encodeURI.
+         encodeURI doesn't encode #, ?, % which breaks filenames containing
+         those characters — the # is treated as a URL fragment and everything
+         after it is lost, causing 404s or wrong-file errors. */
+      player.src = "/audio/" + track.path.replace(/\\/g, "/").split("/").map(function(s) { return encodeURIComponent(s); }).join("/");
       player.load();
       /* v76: Always set onended handler on restore — the old handler may be
          stale or missing, and a restored track needs the same guards. */
@@ -985,7 +989,8 @@ function playNow(trackObj, idx) {
   N96.currentIdx = idx;
   N96.userPaused = false;  /* New track = clear pause flag */
   _trackStartTime = Date.now();  /* v76: Track when playback started */
-  player.src = "/audio/" + encodeURI(tr.path.replace(/\\/g, "/"));
+  /* v79: Use encodeURIComponent per segment instead of encodeURI (see line 313) */
+  player.src = "/audio/" + tr.path.replace(/\\/g, "/").split("/").map(function(s) { return encodeURIComponent(s); }).join("/");
   player.load();
   var seekFill = document.getElementById("seek-fill");
   if (seekFill) seekFill.style.width = "0%";
@@ -1730,15 +1735,17 @@ function applyPerformanceMode() {
     pauseAurora();
     if (auroraCanvas) auroraCanvas.style.display = 'none';
 
-    // Stop spectrum analyzer
+    // Stop spectrum analyzer VISUAL rendering — but do NOT disconnect
+    // the analyser from the audio graph, as that would break playback.
+    // v80: Only cancel the animation frame, keep Web Audio chain intact.
     pauseSpectrum();
     if (vizCanvas) vizCanvas.style.display = 'none';
 
-    // Disconnect analyser node
-    if (analyser) {
-      try { analyser.disconnect(); } catch(_) {}
-      analyser = null;
-    }
+    // v80: DO NOT disconnect analyser or null it — that breaks the
+    // audio chain: source → analyser → destination. If we disconnect
+    // the analyser, audio stops reaching the speakers. And we can't
+    // re-create a MediaElementSource (only one per element).
+    // Just stop the rendering loop (pauseSpectrum already did this).
 
     // Stop ambient sounds
     stopAllAmbient();
@@ -1751,12 +1758,18 @@ function applyPerformanceMode() {
     if (auroraCanvas) auroraCanvas.style.display = '';
     initAurora();
 
-    // Restore spectrum (will re-init analyser on next playback)
+    // Restore spectrum canvas visibility
     if (vizCanvas) vizCanvas.style.display = '';
 
-    // If currently playing local audio, re-init the spectrum analyzer
+    // If currently playing local audio, resume the spectrum visualizer
+    // v80: Don't call initAnalyser() — the analyser is still connected,
+    // just restart the drawing loop.
     if (N96.isPlaying && N96.nowPlaying && !N96.nowPlaying.isYouTube && !N96.nowPlaying.isSpotify) {
-      initAnalyser();
+      if (analyser && vizCanvas) {
+        drawSpectrum();
+      } else {
+        initAnalyser();
+      }
     }
 
     if (perfBtn) perfBtn.classList.remove('active');
@@ -1814,11 +1827,8 @@ function applyUltraMode() {
     pauseSpectrum();
     if (vizCanvas) vizCanvas.style.display = 'none';
 
-    // Disconnect analyser node completely
-    if (analyser) {
-      try { analyser.disconnect(); } catch(_) {}
-      analyser = null;
-    }
+    // v80: DO NOT disconnect analyser — that breaks the audio chain.
+    // Just stop the visual rendering (pauseSpectrum already did this).
 
     // Stop all ambient sounds
     stopAllAmbient();
@@ -1863,8 +1873,14 @@ function applyUltraMode() {
     } else {
       // Performance Mode is off — fully restore animations
       initAurora();
+      // v80: Don't call initAnalyser() if analyser is already connected.
+      // Just restart the drawing loop.
       if (N96.isPlaying && N96.nowPlaying && !N96.nowPlaying.isYouTube && !N96.nowPlaying.isSpotify) {
-        initAnalyser();
+        if (analyser && vizCanvas) {
+          drawSpectrum();
+        } else {
+          initAnalyser();
+        }
       }
     }
 
@@ -1963,8 +1979,30 @@ document.addEventListener("DOMContentLoaded", function() {
       debouncedSaveState();
     }
   });
-  player.addEventListener("play", function() { debouncedSaveState(); handlePlaybackAnimationState(); });
-  player.addEventListener("pause", function() { debouncedSaveState(); handlePlaybackAnimationState(); });
+  player.addEventListener("play", function() {
+    debouncedSaveState();
+    handlePlaybackAnimationState();
+    /* v80: Sync isPlaying state from actual audio element.
+       Prevents desync when browser auto-pauses/resumes (e.g. focus change,
+       audio interruption, or after our analyser disconnect fix). */
+    if (!N96.isPlaying) {
+      N96.isPlaying = true;
+      N96.userPaused = false;
+      updatePlayPauseUI();
+    }
+  });
+  player.addEventListener("pause", function() {
+    debouncedSaveState();
+    handlePlaybackAnimationState();
+    /* v80: Sync isPlaying state from actual audio element.
+       Only update if the pause wasn't initiated by user (togglePlayPause),
+       which already set isPlaying=false. If userPaused is false, this
+       pause came from the browser or some other interruption. */
+    if (N96.isPlaying && !N96.userPaused) {
+      N96.isPlaying = false;
+      updatePlayPauseUI();
+    }
+  });
 
   /* v57: Auto-save state periodically */
   setInterval(saveState, 30000);
@@ -4509,7 +4547,7 @@ window.n96.help = function() {
     "background:#0d1535;color:#7fd1a4;padding:4px 8px;border-radius:4px;font-weight:bold", ""
   );
 };
-window.n96.version = "v79";
+window.n96.version = "v81";
 
 /* ── Pomodoro Timer (v54) ─────────────────────────────────── */
 
@@ -4669,6 +4707,8 @@ function updatePomodoroUI() {
   var timeEl = document.getElementById('pomo-time-text');
   var sessionEl = document.getElementById('pomo-session-text');
   var startBtn = document.getElementById('pomo-start-btn');
+  /* v80: Pomodoro button in the controls bar gets color states */
+  var pomoBtn = document.getElementById('pomodoro-btn');
 
   var mins = Math.floor(p.timeLeft / 60).toString().padStart(2, '0');
   var secs = (p.timeLeft % 60).toString().padStart(2, '0');
@@ -4680,6 +4720,22 @@ function updatePomodoroUI() {
   if (timeEl) timeEl.innerText = mins + ':' + secs;
   if (sessionEl) sessionEl.innerText = 'Session ' + p.currentSession + ' of ' + p.totalSessions;
   if (startBtn) startBtn.innerText = p.isActive ? 'Pause' : 'Start';
+
+  /* v80: Apply color classes to the pomodoro button in controls bar
+     - pomo-active: green accent (work phase, timer running)
+     - pomo-rest: blue (rest phase, timer running)
+     - pomo-paused: orange/amber (timer paused mid-session)
+     - no class: default gray (timer not started, or all sessions finished) */
+  if (pomoBtn) {
+    pomoBtn.classList.remove('pomo-active', 'pomo-paused', 'pomo-rest');
+    if (p.isActive) {
+      pomoBtn.classList.add(p.phase === 'work' ? 'pomo-active' : 'pomo-rest');
+    } else if (p.intervalId === null && p.timeLeft < p.workDuration && p.timeLeft > 0) {
+      /* Timer was paused mid-session (timeLeft < full duration means it was running) */
+      pomoBtn.classList.add('pomo-paused');
+    }
+    /* Otherwise: no class = default gray (not started yet, or finished) */
+  }
 }
 
 /* ═══════════════════════════════════════════════════════════════
