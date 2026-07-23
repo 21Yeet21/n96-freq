@@ -1,11 +1,12 @@
-/* N96_freq — Service Worker v79
+/* N96_freq — Service Worker v84
    Caches static assets for offline use.
    v79: Exclude /audio/ requests from interception — the SW was cloning
    and buffering audio streams, which breaks streaming playback and causes
    tracks to cut off after ~1-2 minutes. Range requests for seeking also
-   must bypass the SW entirely. */
+   must bypass the SW entirely.
+   v82: Cache name bump to force cache refresh for lazy YT player init fix. */
 
-const CACHE_NAME = 'n96-v79';
+const CACHE_NAME = 'n96-v84';
 const ASSETS = [
   '/',
   '/index.html',

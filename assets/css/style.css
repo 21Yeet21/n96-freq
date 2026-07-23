@@ -590,6 +590,19 @@ body {
   text-shadow: 0 0 8px var(--accent);
 }
 
+/* v83: Fullscreen / Immersive toggle button — theme-adaptable active state */
+#fullscreen-btn.active {
+  color: var(--accent) !important;
+  opacity: 1 !important;
+  text-shadow: 0 0 8px var(--accent);
+  background: var(--accent-glow);
+}
+#fullscreen-btn.active:hover {
+  color: var(--accent) !important;
+  background: var(--accent-glow);
+  filter: brightness(1.3);
+}
+
 /* ═══════════════════════════════════════════════════════════════════
    v71: Ultra Mode (Audio Only) — maximum resource optimization
    Shrinks video iframes to 1x1px (not display:none, which breaks
@@ -754,24 +767,191 @@ body.ultra-mode #ultra-track-overlay.hidden {
 /* v80: Pomodoro button color states */
 #pomodoro-btn.pomo-active {
   color: var(--accent);
+  background: rgba(127, 209, 164, 0.15);
   opacity: 1;
 }
 #pomodoro-btn.pomo-active:hover {
   color: var(--accent);
+  background: rgba(127, 209, 164, 0.25);
 }
 #pomodoro-btn.pomo-paused {
   color: #f0a050;
+  background: rgba(240, 160, 80, 0.15);
   opacity: 0.9;
 }
 #pomodoro-btn.pomo-paused:hover {
   color: #f0a050;
+  background: rgba(240, 160, 80, 0.25);
 }
 #pomodoro-btn.pomo-rest {
   color: #64b5f6;
+  background: rgba(100, 181, 246, 0.15);
   opacity: 1;
 }
 #pomodoro-btn.pomo-rest:hover {
   color: #64b5f6;
+  background: rgba(100, 181, 246, 0.25);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   v83: Immersive Mode (Fullscreen / F11) — complete redesign
+   When browser enters fullscreen (F11 or requestFullscreen):
+   - Sidebar hidden completely
+   - Track panel hidden
+   - Controls bar ALWAYS visible (no sidebar offset)
+   - YT header / back bar ALWAYS visible (gradient overlay on video)
+   - Ambient sound buttons ALWAYS visible (right side)
+   - YouTube video fills viewport (no zoom, no crop)
+   - Local music: title + info centered
+   - All animations paused to save performance
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Hide sidebar in immersive mode */
+body.immersive-mode .sidebar {
+  display: none !important;
+}
+
+/* Hide track panel (song list) in immersive mode */
+body.immersive-mode #track-panel,
+body.immersive-mode #panel-overlay {
+  display: none !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+/* Controls bar — ALWAYS visible in immersive mode, centered, no sidebar offset */
+body.immersive-mode .controls-bar {
+  left: 50%;
+  right: auto;
+  width: auto;
+  max-width: 90%;
+  transform: translateX(-50%);
+  opacity: 1 !important;
+  pointer-events: auto !important;
+  background: rgba(6, 8, 15, 0.85) !important;
+}
+
+/* Hide the theme toggle button in immersive */
+body.immersive-mode .theme-toggle-btn {
+  display: none !important;
+}
+
+/* YouTube video — fill viewport */
+body.immersive-mode .yt-player-container {
+  padding: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  position: fixed;
+  top: 0;
+  left: 0;
+}
+/* YT header — ALWAYS visible with gradient overlay */
+body.immersive-mode .yt-player-header {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 20;
+  padding: 15px 30px;
+  background: linear-gradient(180deg, rgba(6, 8, 15, 0.75) 0%, rgba(6, 8, 15, 0.3) 60%, transparent 100%);
+  opacity: 1 !important;
+  width: 100%;
+  max-width: 100%;
+}
+/* Remove the immersive-visible toggle — header is always visible */
+body.immersive-mode .yt-player-wrap {
+  flex: 1;
+  width: 100vw;
+  height: 100vh;
+  margin-top: 0 !important;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+/* Ambient sound buttons — ALWAYS visible in immersive mode */
+body.immersive-mode .ambient-controls-container {
+  opacity: 1 !important;
+  pointer-events: auto !important;
+  z-index: 50;
+}
+/* v83: YouTube iframe fills full viewport — no zoom, no crop.
+   The iframe fills 100vw × 100vh and YouTube's internal player
+   handles the video layout naturally. No content is lost. */
+body.immersive-mode #yt-player {
+  width: 100vw !important;
+  height: 100vh !important;
+  max-height: 100vh !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  transform: none;
+  /* No aspect-ratio constraint — let it fill the viewport */
+}
+
+/* Local music now-playing — expand visualizer in immersive */
+body.immersive-mode .now-playing {
+  flex: 1;
+  width: 100%;
+  height: 100vh;
+}
+body.immersive-mode .np-content {
+  max-width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+}
+body.immersive-mode .np-visual-container {
+  width: 320px;
+  height: 320px;
+  margin-bottom: 40px;
+}
+body.immersive-mode .np-info {
+  font-size: 32px;
+}
+body.immersive-mode .np-meta {
+  font-size: 13px;
+}
+
+/* v82: Track change notification overlay — auto-hides after 2s */
+.track-change-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 200;
+  text-align: center;
+  padding: 12px 20px;
+  background: linear-gradient(180deg, rgba(6, 8, 15, 0.85) 0%, rgba(6, 8, 15, 0.4) 60%, transparent 100%);
+  color: var(--text-primary);
+  font-size: 14px;
+  font-weight: 300;
+  letter-spacing: 0.5px;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  opacity: 1;
+  transform: translateY(0);
+  transition: opacity 0.6s ease, transform 0.6s ease;
+  pointer-events: none;
+}
+.track-change-overlay.auto-hide {
+  opacity: 0;
+  transform: translateY(-30px);
+}
+.track-change-overlay.hidden {
+  display: none !important;
+}
+.track-change-title {
+  font-weight: 400;
+  color: var(--accent);
+}
+.track-change-meta {
+  font-size: 11px;
+  color: var(--text-muted);
+  letter-spacing: 1px;
+  margin-top: 3px;
 }
 
 .ctrl-play {

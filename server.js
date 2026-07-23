@@ -1132,6 +1132,16 @@ app.get('/api/spotify/playlists/:id', spotifyLimiter, async (req, res) => {
     if (err.status === 404) {
       return res.status(404).json({ error: 'Playlist not found. It may be private, deleted, or region-locked. Make sure you are connected to Spotify.' });
     }
+    /* v82: Pass through 403 Premium errors with a clear message */
+    if (err.status === 403) {
+      const isPremium = err.message && err.message.toLowerCase().includes('premium');
+      return res.status(403).json({
+        error: isPremium ? 'premium_required' : 'access_denied',
+        message: isPremium
+          ? 'Spotify Premium is required for the app owner to access playlists. If you recently subscribed, it can take a few hours to activate.'
+          : err.message
+      });
+    }
     res.status(err.status || 500).json({ error: err.message });
   }
 });
@@ -1169,6 +1179,19 @@ app.get('/api/spotify/playlists/:id/tracks', spotifyLimiter, async (req, res) =>
       console.log('[spotify] playlist ' + id + ' has ' + metaTotal + ' tracks (pre-check)' + (useItemsEndpoint ? ' [items]' : ''));
     } catch (metaErr) {
       console.warn('[spotify] metadata pre-check failed:', metaErr.message);
+      /* v82: If the pre-check fails with 403, pass the real error through.
+         Previously we swallowed 403 "Premium subscription required" and
+         returned an empty tracks list with a misleading "no tracks" warning.
+         Now we detect the 403 and return it to the client with a clear message. */
+      if (metaErr.status === 403) {
+        const isPremium = metaErr.message && metaErr.message.toLowerCase().includes('premium');
+        return res.status(403).json({
+          error: isPremium ? 'premium_required' : 'access_denied',
+          message: isPremium
+            ? 'Spotify Premium is required for the app owner to access playlists. If you recently subscribed, it can take a few hours to activate.'
+            : metaErr.message
+        });
+      }
     }
     if (metaTotal === 0) {
       console.log('[spotify] playlist is empty - returning empty tracks list');

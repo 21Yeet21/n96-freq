@@ -1,8 +1,8 @@
 /* N96_freq — app.js
-   Version: 81 (Fix performance/ultra mode stopping music; fix play/pause desync; pomodoro button colors)
+   Version: 84 (cache bust fix; immersive mode always-visible controls/header/sounds; LF normalization)
    If you see this exact string in DevTools Console, you have the latest version.
    If you don't see it, your browser is loading a STALE cached copy — do Ctrl+Shift+R. */
-console.log("%c[N96] app.js v81 loaded", "color:#7fd1a4;font-weight:bold;");
+console.log("%c[N96] app.js v84 loaded", "color:#7fd1a4;font-weight:bold;");
 
 const $ = function(s) { return document.querySelector(s); };
 const $$ = function(s) { return Array.from(document.querySelectorAll(s)); };
@@ -995,7 +995,12 @@ function playNow(trackObj, idx) {
   var seekFill = document.getElementById("seek-fill");
   if (seekFill) seekFill.style.width = "0%";
   player.play().then(function() {
-    N96.nowPlaying = tr; N96.isPlaying = true; updateNPUI(tr); updateStats(tr); $("#play-pause-btn").textContent = "\u23F8"; showPanel(true); initAnalyser(); startTimer(); updateMediaSession();
+    N96.nowPlaying = tr; N96.isPlaying = true; updateNPUI(tr); updateStats(tr); $("#play-pause-btn").textContent = "\u23F8"; showPanelThenAutoHide(); initAnalyser(); startTimer(); updateMediaSession();
+    /* v82: Show track change notification overlay — auto-hides after 2s */
+    var tcTitle = (tr.filename || '').replace(/\.(mp3|flac|wav|ogg|m4a)$/i, '').replace(/[-_]/g, " ");
+    var tcMeta = (tr.ext || '').toUpperCase() + ' · #' + (idx + 1);
+    if (tr.folder) tcMeta += ' · ' + tr.folder.split('/')[0];
+    showTrackChangeNotification(tcTitle, tcMeta);
     $$(".track-item").forEach(function(el) { el.classList.remove("active"); if (parseInt(el.dataset.idx) === N96.currentIdx) { el.classList.add("active"); setTimeout(function() { el.scrollIntoView({ behavior: "smooth", block: "center" }); }, 50); } });
   }).catch(function(e) { showErrorModal("Failed to play track: " + e.message, tr.filename || tr.path); });
   player.onloadedmetadata = function() { N96.duration = player.duration || 0; setTimeout(updateMediaSessionPosition, 300); };
@@ -1295,18 +1300,23 @@ function togglePlayPause() {
   // v19: Handle YouTube/Spotify mode
   if (spotifyState.activePlaylistId || (N96.nowPlaying && N96.nowPlaying.isYouTube)) {
     if (ytPlayer && ytReady) {
-      var state = ytPlayer.getPlayerState();
-      if (state === 1) { // playing
-        ytPlayer.pauseVideo();
-        N96.isPlaying = false;
-        N96.userPaused = true;
-        updatePlayPauseUI();
-      } else {
-        ytPlayer.playVideo();
-        N96.isPlaying = true;
-        N96.userPaused = false;
-        updatePlayPauseUI();
+      try {
+        var state = ytPlayer.getPlayerState();
+        if (state === 1) { // playing
+          ytPlayer.pauseVideo();
+          N96.isPlaying = false;
+          N96.userPaused = true;
+        } else {
+          ytPlayer.playVideo();
+          N96.isPlaying = true;
+          N96.userPaused = false;
+        }
+      } catch(e) {
+        console.warn('[N96] YT player toggle error:', e);
+        /* v82: If the player is in a bad state, try to recover */
+        N96.isPlaying = !N96.isPlaying;
       }
+      updatePlayPauseUI();
     }
     if ("mediaSession" in navigator) {
       navigator.mediaSession.playbackState = N96.isPlaying ? "playing" : "paused";
@@ -1750,6 +1760,15 @@ function applyPerformanceMode() {
     // Stop ambient sounds
     stopAllAmbient();
 
+    // v82: After stopping ambient sounds, ensure audioCtx stays alive.
+    // Some browsers suspend the AudioContext when all non-MediaElementSource
+    // nodes are disconnected, which silences the <audio> element too since
+    // it's routed through MediaElementSource → analyser → destination.
+    if (audioCtx && audioCtx.state === 'suspended') {
+      audioCtx.resume().catch(function(){});
+      console.log('[N96] audioCtx resumed after ambient stop');
+    }
+
     if (perfBtn) perfBtn.classList.add('active');
     console.log('[N96] Performance Mode enabled — animations and ambient stopped');
   } else {
@@ -1832,6 +1851,14 @@ function applyUltraMode() {
 
     // Stop all ambient sounds
     stopAllAmbient();
+
+    // v82: After stopping ambient sounds, ensure audioCtx stays alive.
+    // Some browsers suspend the AudioContext when all non-MediaElementSource
+    // nodes are disconnected, which silences the <audio> element too.
+    if (audioCtx && audioCtx.state === 'suspended') {
+      audioCtx.resume().catch(function(){});
+      console.log('[N96] audioCtx resumed after ambient stop (ultra mode)');
+    }
 
     // Slow down the YouTube seek bar interval to save CPU
     if (spotifyState.ytSeekInterval) {
@@ -1982,9 +2009,10 @@ document.addEventListener("DOMContentLoaded", function() {
   player.addEventListener("play", function() {
     debouncedSaveState();
     handlePlaybackAnimationState();
-    /* v80: Sync isPlaying state from actual audio element.
-       Prevents desync when browser auto-pauses/resumes (e.g. focus change,
-       audio interruption, or after our analyser disconnect fix). */
+    /* v82: Always sync isPlaying from the actual element on 'play' event.
+       This catches browser auto-resume, audio focus return, and
+       any other case where the element starts playing without
+       our code explicitly setting N96.isPlaying = true. */
     if (!N96.isPlaying) {
       N96.isPlaying = true;
       N96.userPaused = false;
@@ -1994,11 +2022,19 @@ document.addEventListener("DOMContentLoaded", function() {
   player.addEventListener("pause", function() {
     debouncedSaveState();
     handlePlaybackAnimationState();
-    /* v80: Sync isPlaying state from actual audio element.
-       Only update if the pause wasn't initiated by user (togglePlayPause),
-       which already set isPlaying=false. If userPaused is false, this
-       pause came from the browser or some other interruption. */
-    if (N96.isPlaying && !N96.userPaused) {
+    /* v82: Sync isPlaying from the actual element on 'pause' event.
+       If userPaused is false, the browser paused (focus loss, interruption, etc.)
+       — we MUST update the UI to match reality.
+       If userPaused is true, togglePlayPause already set isPlaying=false,
+       so this is redundant but harmless. */
+    if (N96.isPlaying) {
+      N96.isPlaying = false;
+      updatePlayPauseUI();
+    }
+  });
+  player.addEventListener("ended", function() {
+    /* v82: Ensure isPlaying is false when a track ends naturally */
+    if (N96.isPlaying) {
       N96.isPlaying = false;
       updatePlayPauseUI();
     }
@@ -2006,6 +2042,21 @@ document.addEventListener("DOMContentLoaded", function() {
 
   /* v57: Auto-save state periodically */
   setInterval(saveState, 30000);
+
+  /* v82: Periodic play/pause state sync — catches any desync that
+     event listeners miss (e.g., browser audio focus changes,
+     AudioContext suspension/resume, or race conditions). */
+  setInterval(function() {
+    if (N96.nowPlaying && !N96.nowPlaying.isYouTube && !N96.nowPlaying.isSpotify) {
+      var actuallyPlaying = !player.paused && !player.ended && player.readyState >= 2;
+      if (actuallyPlaying !== N96.isPlaying) {
+        console.log('[N96] Play/pause desync detected — correcting isPlaying from', N96.isPlaying, 'to', actuallyPlaying);
+        N96.isPlaying = actuallyPlaying;
+        if (actuallyPlaying) N96.userPaused = false;
+        updatePlayPauseUI();
+      }
+    }
+  }, 3000);
 
   /* v69: Save state before leaving — flush any pending debounce */
   window.addEventListener("beforeunload", saveStateNow);
@@ -2076,7 +2127,7 @@ document.addEventListener("keydown", function(e) {
       break;
     case "f":
     case "F":
-      toggleFullscreen();
+      toggleImmersiveMode();
       break;
     case "t":
     case "T":
@@ -2088,6 +2139,10 @@ document.addEventListener("keydown", function(e) {
       break;
     case "Escape":
       closeAllOverlays();
+      /* v83: If in immersive mode, exit it (handles both F11 and requestFullscreen) */
+      if (immersiveMode) {
+        exitImmersiveMode();
+      }
       break;
     case "/":
       e.preventDefault();
@@ -2381,6 +2436,169 @@ function toggleFullscreen() {
   }
 }
 
+/* ═══════════════════════════════════════════════════════════════
+   v83: Immersive Mode — fullscreen experience
+   When the browser enters fullscreen (F11 or our toggleFullscreen),
+   we add `.immersive-mode` to the body which:
+   1. Hides the sidebar
+   2. Hides the track panel
+   3. Auto-hides the controls bar (shows on mouse movement near bottom)
+   4. Makes YouTube video fill the screen (zoomed, no black borders)
+   5. Expands local music visualizer/background effects
+
+   NOTE: Chrome's F11 doesn't fire `fullscreenchange` event — it uses
+   "browser fullscreen" mode. So we detect F11 via resize events and
+   window dimension checks (window fills screen = immersive ON).
+   ═══════════════════════════════════════════════════════════════ */
+var immersiveMode = false;
+var immersiveHideTimer = null;
+
+function enterImmersiveMode(shouldRequestFullscreen) {
+  if (immersiveMode) return;
+  immersiveMode = true;
+  document.body.classList.add('immersive-mode');
+  /* Force-hide the track panel immediately */
+  showPanel(false);
+  /* v83: Update fullscreen button state */
+  var fsBtn = document.getElementById('fullscreen-btn');
+  if (fsBtn) fsBtn.classList.add('active');
+  /* v83: Pause ALL background animations (aurora + spectrum) to save performance */
+  pauseAurora();
+  if (auroraCanvas) auroraCanvas.style.display = 'none';
+  pauseSpectrum();
+  console.log('[N96] Immersive mode: aurora & spectrum paused for performance');
+  /* v83: Only call requestFullscreen when triggered by our button (not F11) */
+  if (shouldRequestFullscreen && !document.fullscreenElement) {
+    document.documentElement.requestFullscreen().catch(function() {
+      console.log('[N96] requestFullscreen not available — immersive mode works without browser fullscreen');
+    });
+  }
+  console.log('[N96] Immersive mode ON — fullscreen experience activated');
+}
+
+function exitImmersiveMode() {
+  if (!immersiveMode) return;
+  immersiveMode = false;
+  document.body.classList.remove('immersive-mode');
+  /* v83: Update fullscreen button state */
+  var fsBtn = document.getElementById('fullscreen-btn');
+  if (fsBtn) fsBtn.classList.remove('active');
+  /* v83: Resume aurora and spectrum */
+  if (auroraCanvas) auroraCanvas.style.display = '';
+  if (!N96.performanceMode && !N96.ultraMode) {
+    resumeAurora();
+    resumeSpectrum();
+  }
+  /* v83: Exit browser fullscreen if we entered it */
+  if (document.fullscreenElement) {
+    document.exitFullscreen().catch(function(){});
+  }
+  if (immersiveHideTimer) { clearTimeout(immersiveHideTimer); immersiveHideTimer = null; }
+  console.log('[N96] Immersive mode OFF — normal UI restored');
+}
+
+/* v83: Toggle immersive mode via the button — enters/exits fullscreen */
+function toggleImmersiveMode() {
+  if (immersiveMode) {
+    exitImmersiveMode();
+  } else {
+    enterImmersiveMode(true);  /* true = request browser fullscreen via API */
+  }
+}
+
+/* v83: Detect fullscreen state changes.
+   Method 1: fullscreenchange event (programmatic fullscreen, Firefox F11)
+   Method 2: resize event + window dimension check (Chrome F11 browser fullscreen)
+   Chrome's F11 doesn't set document.fullscreenElement — it just hides browser chrome.
+   We detect it by checking if the window fills the entire screen. */
+function detectFullscreenState() {
+  /* Check if window is in fullscreen-like state:
+     - window fills screen width and height (within 2px tolerance)
+     - OR document.fullscreenElement is set */
+  var isWindowFullscreen = (window.innerWidth >= screen.width - 2 && window.innerHeight >= screen.height - 2);
+  var isApiFullscreen = !!document.fullscreenElement;
+
+  if (isWindowFullscreen || isApiFullscreen) {
+    if (!immersiveMode) enterImmersiveMode(false);  /* false = don't request fullscreen (already fullscreen from F11) */
+  } else {
+    if (immersiveMode) exitImmersiveMode();
+  }
+}
+
+/* Listen for fullscreen API changes (requestFullscreen, Firefox F11) */
+document.addEventListener('fullscreenchange', function() {
+  /* Small delay so window dimensions settle after the event */
+  setTimeout(detectFullscreenState, 100);
+});
+
+/* v83: Also detect Chrome's F11 fullscreen via resize.
+   When the user presses F11 in Chrome, the browser window grows to
+   fill the screen, but document.fullscreenElement stays null.
+   We catch this via the resize event. */
+window.addEventListener('resize', function() {
+  /* Debounce — don't check too frequently during window drag */
+  setTimeout(detectFullscreenState, 150);
+});
+
+/* v83: Catch the initial F11 keydown to immediately enter immersive mode
+   before the browser even finishes the resize animation */
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'F11') {
+    /* Let the browser handle the F11 toggle normally, but we'll
+       detect the resulting resize/fullscreenchange */
+    setTimeout(detectFullscreenState, 200);
+  }
+});
+
+/* ═══════════════════════════════════════════════════════════════
+   v83: Track panel auto-hide — disappear after 2 seconds when
+   a song is selected or when the next song starts playing.
+   In immersive mode, the panel is hidden completely (CSS handles that).
+   In normal mode, we show it briefly then auto-hide after 2s.
+   ═══════════════════════════════════════════════════════════════ */
+var trackPanelAutoHideTimer = null;
+
+function showPanelThenAutoHide() {
+  /* Only auto-hide in normal mode (not immersive, where it's hidden by CSS) */
+  if (immersiveMode) return;
+  showPanel(true);
+  /* Auto-hide after 2 seconds */
+  if (trackPanelAutoHideTimer) clearTimeout(trackPanelAutoHideTimer);
+  trackPanelAutoHideTimer = setTimeout(function() {
+    showPanel(false);
+    trackPanelAutoHideTimer = null;
+  }, 2000);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   v82: Track change notification — auto-hide overlay after 2s
+   When a track switches (local, YouTube, or Spotify), show a brief
+   overlay at the top with the new track title and auto-hide after 2s.
+   ═══════════════════════════════════════════════════════════════ */
+var trackChangeTimer = null;
+
+function showTrackChangeNotification(title, meta) {
+  var overlay = document.getElementById('track-change-overlay');
+  var titleEl = document.getElementById('track-change-title');
+  var metaEl = document.getElementById('track-change-meta');
+  if (!overlay || !titleEl || !metaEl) return;
+
+  titleEl.textContent = title;
+  metaEl.textContent = meta || '';
+
+  overlay.classList.remove('hidden', 'auto-hide');
+
+  if (trackChangeTimer) clearTimeout(trackChangeTimer);
+  trackChangeTimer = setTimeout(function() {
+    overlay.classList.add('auto-hide');
+    /* Remove from DOM after animation */
+    setTimeout(function() {
+      overlay.classList.add('hidden');
+      overlay.classList.remove('auto-hide');
+    }, 600);
+  }, 2000);
+}
+
 function closeAllOverlays() {
   /* Close modals */
   var modals = document.querySelectorAll(".modal-overlay.visible");
@@ -2461,12 +2679,39 @@ var ytReady = false;       // becomes true after YT.Player fires onReady
 var ytPendingVideo = null; // queued video if user clicks before API is ready
 var ytVideoLoaded = false; // tracks whether a video has been explicitly loaded (not just player init)
 
+/* v82: Lazy YT.Player creation — don't create the player while the container
+   is display:none (causes loadVideoById to not be a function in some browsers).
+   Instead, set a flag that the API is available, and create the player when
+   the yt-player view is first shown. */
+var ytApiLoaded = false;  // true once YouTube IFrame API script has loaded
+
 /* Called automatically by the YouTube IFrame API when it finishes loading. */
 function onYouTubeIframeAPIReady() {
   if (typeof YT === "undefined" || !YT.Player) {
     setTimeout(onYouTubeIframeAPIReady, 200);
     return;
   }
+  ytApiLoaded = true;
+  console.log("[YouTube] IFrame API loaded — player will be created when needed");
+  /* If the yt-player container is already visible, create the player now */
+  var container = document.getElementById('yt-player-container');
+  if (container && !container.classList.contains('hidden')) {
+    createYTPlayer();
+  }
+}
+
+/* v82: Create the YT.Player instance — only called when the container is visible */
+function createYTPlayer() {
+  if (ytPlayer) return;  // already created
+  if (!ytApiLoaded || typeof YT === "undefined" || !YT.Player) return;
+
+  var placeholder = document.getElementById('yt-player');
+  if (!placeholder) {
+    console.warn("[YouTube] #yt-player element not found — cannot create player");
+    return;
+  }
+
+  console.log("[YouTube] Creating YT.Player instance");
   ytPlayer = new YT.Player("yt-player", {
     height: "100%",
     width: "100%",
@@ -2486,13 +2731,30 @@ function onYouTubeIframeAPIReady() {
   });
 }
 
+/* v82: Ensure the YT player exists and is ready — creates it lazily if needed.
+   Returns true if the player is ready, false otherwise. */
+function ensureYTPlayer() {
+  if (ytReady && ytPlayer && typeof ytPlayer.loadVideoById === 'function') return true;
+  if (!ytPlayer && ytApiLoaded) {
+    /* Player not created yet — create it now if the container is visible */
+    var container = document.getElementById('yt-player-container');
+    if (container && !container.classList.contains('hidden')) {
+      createYTPlayer();
+    }
+  }
+  return (ytReady && ytPlayer && typeof ytPlayer.loadVideoById === 'function');
+}
+
 function onYTReady() {
   ytReady = true;
+  console.log("[YouTube] Player ready");
   if (ytPendingVideo) {
     var v = ytPendingVideo;
     ytPendingVideo = null;
-    ytPlayer.loadVideoById(v.id);
-    ytVideoLoaded = true;
+    if (typeof ytPlayer.loadVideoById === 'function') {
+      ytPlayer.loadVideoById(v.id);
+      ytVideoLoaded = true;
+    }
   }
 }
 
@@ -2502,6 +2764,7 @@ function onYTStateChange(e) {
   var container = document.getElementById('yt-player-container');
   if (e.data === YT.PlayerState.PLAYING) {
     N96.isPlaying = true;
+    N96.userPaused = false;
     if (container) container.classList.add('video-active');
   } else if (e.data === YT.PlayerState.PAUSED) {
     N96.isPlaying = false;
@@ -2522,6 +2785,8 @@ function onYTStateChange(e) {
       playNext();
     }
   }
+  // v82: Always update play/pause button on YT state change to prevent desync
+  updatePlayPauseUI();
   // v73: Update ultra track info when YT state changes (play/pause/end)
   updateUltraTrackInfo();
   updateTrackCounter();
@@ -2593,6 +2858,10 @@ function showCenterView(view) {
 
   $("#youtube-view").classList.toggle("hidden", view !== "yt-search");
   $("#yt-player-container").classList.toggle("hidden", view !== "yt-player");
+  /* v82: Lazy-create the YT player when the yt-player container becomes visible */
+  if (view === "yt-player" && !ytPlayer && ytApiLoaded) {
+    createYTPlayer();
+  }
   // External source restore card (shown on refresh instead of embedding)
   $("#ext-source-card").classList.toggle("hidden", view !== "ext-source");
   // Spotify progress indicator only shows in yt-player view AND in Spotify mode
@@ -3175,7 +3444,8 @@ function playYouTube(video) {
 
   $$(".track-item").forEach(function(el){ el.classList.remove("active"); });
 
-  if (ytReady && ytPlayer) {
+  /* v82: Use ensureYTPlayer to lazily create the player if needed */
+  if (ensureYTPlayer()) {
     ytPlayer.loadVideoById(video.id);
     ytVideoLoaded = true;
   } else {
@@ -3188,6 +3458,9 @@ function playYouTube(video) {
 
   // Update play/pause button to show pause icon
   $("#play-pause-btn").textContent = "\u23F8";
+
+  /* v82: Show track change notification for YouTube */
+  showTrackChangeNotification(video.title || 'YouTube Track', 'YOUTUBE' + (video.author ? ' · ' + video.author : ''));
 
   // v20: Re-render sidebar to highlight the active mix
   renderYtMixesSidebar();
@@ -3485,8 +3758,25 @@ function setupMediaSessionHandlers() {
 function updatePlayPauseUI() {
   var btn = $("#play-pause-btn");
   if (btn) {
-    btn.textContent = N96.isPlaying ? "\u23F8" : "\u25B6";
-    if (N96.isPlaying) btn.classList.add("playing");
+    /* v82: Determine the actual playing state more accurately.
+       For local audio, check the player element's paused/ended state.
+       For YouTube/Spotify, rely on N96.isPlaying (set by YT state change handler).
+       This prevents desync where N96.isPlaying is wrong. */
+    var actuallyPlaying = N96.isPlaying;
+    if (N96.nowPlaying && !N96.nowPlaying.isYouTube && !N96.nowPlaying.isSpotify) {
+      /* Local audio — cross-check with the actual element */
+      if (!player.paused && !player.ended && player.readyState >= 2) {
+        actuallyPlaying = true;
+      } else if (player.paused || player.ended) {
+        actuallyPlaying = false;
+      }
+      /* Sync N96.isPlaying if it was wrong */
+      if (actuallyPlaying !== N96.isPlaying) {
+        N96.isPlaying = actuallyPlaying;
+      }
+    }
+    btn.textContent = actuallyPlaying ? "\u23F8" : "\u25B6";
+    if (actuallyPlaying) btn.classList.add("playing");
     else btn.classList.remove("playing");
   }
 }
@@ -3826,7 +4116,38 @@ function addSpotifyPlaylistFromUrl(name, url) {
 async function refreshSpotifyPlaylistMetadata(id) {
   try {
     var res = await fetch("/api/spotify/playlists/" + encodeURIComponent(id));
-    if (!res.ok) throw new Error("HTTP " + res.status);
+    if (!res.ok) {
+      /* v82: Handle 403 premium_required error — show in sidebar, not infinite loading */
+      if (res.status === 403) {
+        var errBody = {};
+        try { errBody = await res.json(); } catch(_) {}
+        if (errBody.error === 'premium_required') {
+          var playlists = loadSpotifyPlaylists();
+          for (var j = 0; j < playlists.length; j++) {
+            if (playlists[j].id === id) {
+              playlists[j].error = "Premium required — Spotify Premium is needed for the app owner to access playlists.";
+              break;
+            }
+          }
+          saveSpotifyPlaylists(playlists);
+          renderSpotifySidebar();
+          showToast("Spotify Premium is required for playlist access", 'warning');
+          return;
+        }
+        /* Other 403 — access denied */
+        var playlists = loadSpotifyPlaylists();
+        for (var j = 0; j < playlists.length; j++) {
+          if (playlists[j].id === id) {
+            playlists[j].error = errBody.message || "Access denied";
+            break;
+          }
+        }
+        saveSpotifyPlaylists(playlists);
+        renderSpotifySidebar();
+        return;
+      }
+      throw new Error("HTTP " + res.status);
+    }
     var data = await res.json();
     var playlists = loadSpotifyPlaylists();
     for (var i = 0; i < playlists.length; i++) {
@@ -3849,7 +4170,7 @@ async function refreshSpotifyPlaylistMetadata(id) {
   } catch (e) {
     console.error("[spotify] metadata fetch failed for", id, e);
     // If 404, mark playlist as failed so user sees the error
-    if (e.message.includes("404")) {
+    if (e.message && e.message.includes("404")) {
       var playlists = loadSpotifyPlaylists();
       for (var j = 0; j < playlists.length; j++) {
         if (playlists[j].id === id) {
@@ -3962,6 +4283,29 @@ async function playSpotifyPlaylist(pl, startTrackIndex, startTrackTitle) {
           "Spotify login required to play playlists.\n\n" +
           'Click "Connect Spotify" in the sidebar to\n' +
           "authorize N96 to access your playlists."
+        );
+        $("#error-search-btn").style.display = "none";
+        $("#error-close-btn").textContent = "Got it";
+        $("#error-close-btn").onclick = function() {
+          $("#error-modal").classList.remove("visible");
+          $("#error-search-btn").style.display = "";
+          $("#error-search-btn").textContent = "Search in Tracks";
+          $("#error-close-btn").textContent = "Close";
+          stopSpotifyCompletely();
+        };
+        stopSpotifyCompletely();
+        return;
+      }
+
+      /* v82: New error type — premium_required */
+      if (errBody403.error === 'premium_required') {
+        console.warn("[spotify] 403 premium_required — app owner needs Premium");
+        showErrorModal(
+          "Spotify Premium Required\n\n" +
+          "The Spotify app owner must have an active Premium\n" +
+          "subscription to access playlists via the API.\n\n" +
+          "If you recently subscribed, it can take a few\n" +
+          "hours for the API to recognize your subscription."
         );
         $("#error-search-btn").style.display = "none";
         $("#error-close-btn").textContent = "Got it";
@@ -4393,7 +4737,8 @@ async function playSpotifyTrack(track, myToken) {
   updateUltraTrackInfo();
   updateTrackCounter();
 
-  if (ytReady && ytPlayer) {
+  /* v82: Use ensureYTPlayer to lazily create the player if needed */
+  if (ensureYTPlayer()) {
     ytPlayer.loadVideoById(videoId);
     ytVideoLoaded = true;
   } else {
@@ -4406,6 +4751,9 @@ async function playSpotifyTrack(track, myToken) {
 
   // Prefetch next 3 tracks (prioritize upcoming)
   prefetchNextTracks(spotifyState.currentIdx);
+
+  /* v82: Show track change notification for Spotify */
+  showTrackChangeNotification(titleStr, 'SPOTIFY · ' + pos + '/' + total);
 
   /* v78: Update collections sidebar to highlight the active Spotify playlist */
   renderCollectionsSidebar();
@@ -4541,13 +4889,13 @@ window.n96.help = function() {
     "  T           — Sleep Timer\n" +
     "  P           — Pomodoro Timer\n" +
     "  M           — Mute/Unmute Ambient\n" +
-    "  F           — Toggle Fullscreen\n" +
+    "  F           — Toggle Immersive/Fullscreen\n" +
     "  Esc         — Close Overlays\n" +
     "  /           — Focus Search",
     "background:#0d1535;color:#7fd1a4;padding:4px 8px;border-radius:4px;font-weight:bold", ""
   );
 };
-window.n96.version = "v81";
+window.n96.version = "v84";
 
 /* ── Pomodoro Timer (v54) ─────────────────────────────────── */
 
@@ -4950,7 +5298,8 @@ function playYtPlaylistVideo(index) {
 
   $$('.track-item').forEach(function(el) { el.classList.remove('active'); });
 
-  if (ytReady && ytPlayer) {
+  /* v82: Use ensureYTPlayer to lazily create the player if needed */
+  if (ensureYTPlayer()) {
     ytPlayer.loadVideoById(video.id);
     ytVideoLoaded = true;
   } else {
@@ -4960,6 +5309,8 @@ function playYtPlaylistVideo(index) {
 
   startYTSeekBar();
   document.getElementById('play-pause-btn').textContent = '\u23F8';
+  /* v82: Show track change notification for YT playlist */
+  showTrackChangeNotification(video.title || 'YouTube Playlist Track', 'YOUTUBE PLAYLIST');
   renderYtMixesSidebar();
   debouncedSaveState();
 }
