@@ -10,7 +10,7 @@
 [![Node.js ≥16](https://img.shields.io/badge/Node.js-%E2%89%A516-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
 [![PWA Ready](https://img.shields.io/badge/PWA-Ready-A1286A?logo=pwa&logoColor=white)](https://web.dev/progressive-web-apps/)
 
-![demo](screenshots/demo.mp4)
+![demo](screenshots/demo.gif)
 
 </div>
 
@@ -18,29 +18,15 @@
 
 ## 🎬 See It In Action
 
-**Setup Wizard — configure in seconds**
+| | | |
+|:---:|:---:|:---:|
+| ![Setup Wizard](screenshots/setup_wizard.gif) | ![Themes](screenshots/themes.gif) | ![YouTube](screenshots/youtube.gif) |
+| *Setup Wizard* | *11 Themes* | *YouTube* |
 
-![setup_wizard](screenshots/setup_wizard.mp4)
-
-**11 Themes with instant switching**
-
-![themes](screenshots/themes.mp4)
-
-**YouTube search & streaming**
-
-![youtube](screenshots/youtube.mp4)
-
-**Spotify playlist integration**
-
-![spotify](screenshots/spotify.mp4)
-
-**Collections & playlists**
-
-![collections](screenshots/collections.mp4)
-
-**Ambient sounds, timers & more**
-
-![features](screenshots/features.mp4)
+| | | |
+|:---:|:---:|:---:|
+| ![Spotify](screenshots/spotify.gif) | ![Collections](screenshots/collections.gif) | ![Features](screenshots/features.gif) |
+| *Spotify* | *Collections* | *Ambient & Timers* |
 
 ---
 
