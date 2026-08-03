@@ -1,9 +1,6 @@
 # Dependencies
 node_modules/
 
-#JSON data 
-.json 
-
 # Environment & secrets (NEVER commit)
 .env
 .env.local
