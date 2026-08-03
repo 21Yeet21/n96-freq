@@ -12,15 +12,23 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@200;300;400;500;600&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="assets/css/style.css?v=84">
+  <link rel="stylesheet" href="assets/css/style.css?v=89">
 </head>
 <body>
   <canvas id="aurora-canvas" aria-hidden="true"></canvas>
 
   <div class="app-surface">
-    <!-- Theme toggle -->
-
-    <button class="btn-icon theme-toggle-btn" onclick="toggleTheme()" title="Toggle theme" aria-label="Toggle theme"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg></button>
+    <!-- v88: Theme Picker Dropdown -->
+    <div class="theme-picker" id="theme-picker">
+      <button class="theme-picker-btn" onclick="toggleThemePicker()" title="Choose theme" aria-label="Choose theme">
+        <span class="current-theme-dot"></span>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+      </button>
+      <div class="theme-picker-dropdown" id="theme-picker-dropdown">
+        <div class="theme-picker-title">Themes</div>
+        <!-- Populated by JS -->
+      </div>
+    </div>
 
     <!-- Skip to main content (accessibility) -->
     <a href="#now-playing" class="skip-link" style="position:absolute;top:-100px;left:0;z-index:9999;padding:8px 16px;background:var(--accent);color:#000;text-decoration:none;font-weight:bold;border-radius:0 0 4px 0;transition:top 0.2s;" onfocus="this.style.top='0'" onblur="this.style.top='-100px'">Skip to player</a>
@@ -33,7 +41,10 @@
           <div class="logo-title">N96_FREQ</div>
           <div class="logo-subtitle">your quiet room</div>
         </div>
-        <button class="btn-icon setup-wizard-btn" onclick="event.stopPropagation(); openSetupWizard()" title="Setup Wizard" aria-label="Setup Wizard"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg></button>
+        <div class="branding-actions">
+          <button class="btn-icon setup-wizard-btn" onclick="event.stopPropagation(); openSetupWizard()" title="Setup Wizard" aria-label="Setup Wizard"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg></button>
+          <button class="btn-icon sidebar-collapse-btn" id="sidebar-collapse-btn" onclick="toggleSidebarCollapse()" title="Collapse sidebar" aria-label="Toggle sidebar collapse"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="11 17 6 12 11 7"></polyline><polyline points="18 17 13 12 18 7"></polyline></svg></button>
+        </div>
       </div>
 
       <!-- 2. Scrollable content area for all lists -->
@@ -70,7 +81,17 @@
               <span class="mix-add-icon" aria-hidden="true">+</span>
               <span>Add mix with link</span>
             </button>
-            <button class="sidebar-btn mix-add-btn" onclick="openPlaylistModal()" aria-label="Load YouTube Playlist" style="margin-top:4px;">
+          </div>
+        </div>
+
+        <!-- YOUTUBE PLAYLISTS — collapsible (v85) -->
+        <div class="sidebar-section collapsible" id="yt-playlists-section">
+          <div class="sidebar-header collapsible-header" onclick="toggleSidebarSection('yt-playlists-section')" role="button" aria-expanded="true" tabindex="0">
+            <span>YOUTUBE PLAYLISTS</span>
+            <span class="chevron" aria-hidden="true">▾</span>
+          </div>
+          <div class="sidebar-list" id="yt-playlists-list" role="list">
+            <button class="sidebar-btn playlist-add-btn" onclick="openPlaylistModal()" aria-label="Load YouTube Playlist">
               <span class="mix-add-icon" aria-hidden="true">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></svg>
               </span>
@@ -263,6 +284,7 @@
           Load YouTube Playlist
         </h3>
         <p style="color:var(--text-secondary);font-size:12px;margin-bottom:12px;">Paste a YouTube playlist URL to load and play all its videos.</p>
+        <input type="text" id="yt-playlist-name-input" placeholder="Playlist name (optional — uses YouTube title if blank)" autocomplete="off" style="margin-bottom:10px;" aria-label="Playlist display name" />
         <div class="yt-playlist-input-row">
           <input type="text" id="yt-playlist-url-input" placeholder="https://youtube.com/playlist?list=..." autocomplete="off" aria-label="YouTube playlist URL" />
           <button class="btn-primary" id="yt-playlist-fetch-btn" onclick="fetchYouTubePlaylist()">Fetch</button>
@@ -280,6 +302,7 @@
           <div class="yt-playlist-controls">
             <button class="btn-primary" id="yt-playlist-play-all-btn" onclick="playYtPlaylist(false)">Play All</button>
             <button class="btn-secondary" id="yt-playlist-shuffle-btn" onclick="playYtPlaylist(true)">Shuffle Play</button>
+            <button class="btn-secondary" id="yt-playlist-save-btn" onclick="savePlaylistToSidebar()" style="margin-left:auto;">Save Playlist</button>
           </div>
           <div class="yt-playlist-video-list" id="yt-playlist-video-list" role="list"></div>
         </div>
@@ -616,6 +639,6 @@
 
   <audio id="player"></audio>
   <script src="https://www.youtube.com/iframe_api"></script>
-  <script src="assets/js/app.js?v=84"></script>
+  <script src="assets/js/app.js?v=89"></script>
 </body>
 </html>
