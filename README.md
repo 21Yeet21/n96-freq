@@ -10,7 +10,7 @@
 [![Node.js ≥16](https://img.shields.io/badge/Node.js-%E2%89%A516-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
 [![PWA Ready](https://img.shields.io/badge/PWA-Ready-A1286A?logo=pwa&logoColor=white)](https://web.dev/progressive-web-apps/)
 
-<video src="https://github.com/21Yeet21/n96-freq/raw/main/screenshots/demo.mp4" autoplay muted loop width="100%"></video>
+![demo](screenshots/demo.mp4)
 
 </div>
 
@@ -18,36 +18,15 @@
 
 ## 🎬 See It In Action
 
-<table>
-<tr>
-<td align="center" width="33%">
-<video src="https://github.com/21Yeet21/n96-freq/raw/main/screenshots/setup_wizard.mp4" autoplay muted loop width="280"></video>
-<br><em>Setup Wizard — configure in seconds</em>
-</td>
-<td align="center" width="33%">
-<video src="https://github.com/21Yeet21/n96-freq/raw/main/screenshots/themes.mp4" autoplay muted loop width="280"></video>
-<br><em>11 Themes with instant switching</em>
-</td>
-<td align="center" width="33%">
-<video src="https://github.com/21Yeet21/n96-freq/raw/main/screenshots/youtube.mp4" autoplay muted loop width="280"></video>
-<br><em>YouTube search & streaming</em>
-</td>
-</tr>
-<tr>
-<td align="center" width="33%">
-<video src="https://github.com/21Yeet21/n96-freq/raw/main/screenshots/spotify.mp4" autoplay muted loop width="280"></video>
-<br><em>Spotify playlist integration</em>
-</td>
-<td align="center" width="33%">
-<video src="https://github.com/21Yeet21/n96-freq/raw/main/screenshots/collections.mp4" autoplay muted loop width="280"></video>
-<br><em>Collections & playlists</em>
-</td>
-<td align="center" width="33%">
-<video src="https://github.com/21Yeet21/n96-freq/raw/main/screenshots/features.mp4" autoplay muted loop width="280"></video>
-<br><em>Ambient sounds, timers & more</em>
-</td>
-</tr>
-</table>
+| | | |
+|:---:|:---:|:---:|
+| ![setup_wizard](screenshots/setup_wizard.mp4) | ![themes](screenshots/themes.mp4) | ![youtube](screenshots/youtube.mp4) |
+| *Setup Wizard — configure in seconds* | *11 Themes with instant switching* | *YouTube search & streaming* |
+
+| | | |
+|:---:|:---:|:---:|
+| ![spotify](screenshots/spotify.mp4) | ![collections](screenshots/collections.mp4) | ![features](screenshots/features.mp4) |
+| *Spotify playlist integration* | *Collections & playlists* | *Ambient sounds, timers & more* |
 
 > **Recording tips:** Record short 15–20s clips with OBS at 720p. Compress with `ffmpeg -i clip.mp4 -vcodec libx264 -crf 23 -preset slow -acodec aac output.mp4`. Drop them in `screenshots/`.
 
