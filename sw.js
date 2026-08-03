@@ -1,7 +1,7 @@
-/* N96_freq — Service Worker v89
-   v89: Fixed drag-and-drop to collections (button→div). */
+/* N96_freq — Service Worker v90
+   v90: Removed blobs, waves follow theme instantly, stars fill full page. */
 
-const CACHE_NAME = 'n96-v89';
+const CACHE_NAME = 'n96-v90';
 const ASSETS = [
   '/',
   '/index.html',
