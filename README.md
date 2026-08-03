@@ -4,13 +4,52 @@
 
 ### *Your Quiet Room*
 
-A production-grade, offline-first music player PWA — local files, YouTube, Spotify, ambient sounds, and focus timers in one serene interface.
+**A production-grade, offline-first music player PWA** — local files, YouTube, Spotify, ambient sounds, and focus timers in one serene interface.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Node.js ≥16](https://img.shields.io/badge/Node.js-%E2%89%A516-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
 [![PWA Ready](https://img.shields.io/badge/PWA-Ready-A1286A?logo=pwa&logoColor=white)](https://web.dev/progressive-web-apps/)
 
+<video src="https://github.com/21Yeet21/n96-freq/raw/main/screenshots/demo.mp4" autoplay muted loop width="100%"></video>
+
 </div>
+
+---
+
+## 🎬 See It In Action
+
+<table>
+<tr>
+<td align="center" width="33%">
+<video src="https://github.com/21Yeet21/n96-freq/raw/main/screenshots/setup_wizard.mp4" autoplay muted loop width="280"></video>
+<br><em>Setup Wizard — configure in seconds</em>
+</td>
+<td align="center" width="33%">
+<video src="https://github.com/21Yeet21/n96-freq/raw/main/screenshots/themes.mp4" autoplay muted loop width="280"></video>
+<br><em>11 Themes with instant switching</em>
+</td>
+<td align="center" width="33%">
+<video src="https://github.com/21Yeet21/n96-freq/raw/main/screenshots/youtube.mp4" autoplay muted loop width="280"></video>
+<br><em>YouTube search & streaming</em>
+</td>
+</tr>
+<tr>
+<td align="center" width="33%">
+<video src="https://github.com/21Yeet21/n96-freq/raw/main/screenshots/spotify.mp4" autoplay muted loop width="280"></video>
+<br><em>Spotify playlist integration</em>
+</td>
+<td align="center" width="33%">
+<video src="https://github.com/21Yeet21/n96-freq/raw/main/screenshots/collections.mp4" autoplay muted loop width="280"></video>
+<br><em>Collections & playlists</em>
+</td>
+<td align="center" width="33%">
+<video src="https://github.com/21Yeet21/n96-freq/raw/main/screenshots/features.mp4" autoplay muted loop width="280"></video>
+<br><em>Ambient sounds, timers & more</em>
+</td>
+</tr>
+</table>
+
+> **Recording tips:** Record short 15–20s clips with OBS at 720p. Compress with `ffmpeg -i clip.mp4 -vcodec libx264 -crf 23 -preset slow -acodec aac output.mp4`. Drop them in `screenshots/`.
 
 ---
 
@@ -30,10 +69,11 @@ A production-grade, offline-first music player PWA — local files, YouTube, Spo
 - **⚙️ Setup Wizard** — First-run guided configuration. No `.env` editing required. Auto-detects music folders, validates Spotify credentials, and tests your setup end-to-end.
 - **⚡ Performance Mode** — Disables Aurora canvas, spectrum analyzer, and ambient sounds. Pauses animations when paused or tab is hidden. Saves CPU and battery.
 - **🔋 Ultra Mode (Audio Only)** — Maximum resource optimization. Forces Performance Mode, shrinks video to 1×1px, kills all CSS animations, slows UI polling. Perfect for long listening sessions.
-- **🔀 Shuffle & Repeat** — Full shuffle, repeat-one, repeat-all for all sources.
+- **🔀 Shuffle & Repeat** — Full shuffle (Fisher-Yates), repeat-one, repeat-all for **all** sources — local, YouTube, and Spotify.
 - **⏮ Auto-Resume** — Remembers last track, position, volume, and playlist state across sessions via `localStorage`.
 - **📊 Listening Stats** — Tracks total listening time, tracks played, most-played songs, and daily sessions.
 - **🎧 Media Session API** — Lock-screen & notification controls on supported browsers.
+- **🗂️ Collections** — Organize YouTube mixes and Spotify playlists into named collections. Drag & drop between categories.
 
 ### 🌿 Ambient Sounds & Timers
 
@@ -43,9 +83,34 @@ A production-grade, offline-first music player PWA — local files, YouTube, Spo
 | **😴 Sleep Timer** | Fade out and auto-pause after a set duration. Presets (15 / 30 / 60 min) or custom. |
 | **🍅 Pomodoro Timer** | Configurable focus/rest sessions with procedural audio cues. Auto-pauses music when all sessions complete. |
 
-### 🎨 Themes
+### 🎨 11 Themes
 
-Three built-in color themes — **Twilight** (teal), **Dark** (purple), **Light** (sky blue) — with smooth transitions and a one-click toggle.
+Built-in color themes with smooth, instant transitions and an in-app theme picker:
+
+| | | | | | |
+|:---:|:---:|:---:|:---:|:---:|:---:|
+| 🌌 Twilight | 🌑 Dark | 🌊 Ocean | 🍒 Cherry | 🟡 Amber | 🌸 Rose |
+| 💚 Neon | 🌌 Midnight | 🌲 Forest | 💜 Lavender | ☀️ Light | |
+
+---
+
+## 🔄 Spotify → YouTube Converter
+
+**Don't have Spotify Premium?** No problem. Use the companion tool to convert any Spotify tracks into a YouTube Music playlist — completely free, no Premium required.
+
+<div align="center">
+
+### → [**Spot_to_YT_Converter**](https://github.com/21Yeet21/Spot_to_YT_Converter) ←
+
+</div>
+
+**How it works:**
+1. Add Spotify track URLs to `urls.txt`
+2. Run `python converter.py`
+3. Get a direct link to your new YouTube Music playlist
+4. Paste that playlist URL into N96_freq → done ✅
+
+> No Spotify Premium needed · No Google Cloud account · No 500-song limits · Fully local & private
 
 ---
 
@@ -69,7 +134,7 @@ Three built-in color themes — **Twilight** (teal), **Dark** (purple), **Light*
 
 ```bash
 # 1. Clone the repo
-git clone https://github.com/your-username/n96-freq.git
+git clone https://github.com/21Yeet21/n96-freq.git
 cd n96-freq
 
 # 2. Install dependencies
@@ -83,7 +148,13 @@ Open **http://localhost:3001** — the ⚙️ Setup Wizard will appear on first 
 
 ### Manual Configuration (Optional)
 
-If you prefer to configure via `.env`, create one in the project root:
+If you prefer to configure via `.env`, copy the template:
+
+```bash
+cp .env.example .env
+```
+
+Then edit `.env`:
 
 ```env
 PORT=3001
@@ -122,6 +193,8 @@ Spotify integration is **optional** but unlocks playlist search and playback.
 4. Enter them in the ⚙️ Setup Wizard, or add to `.env`
 
 > **Note:** Spotify playback works by matching tracks on YouTube for audio streaming. This is a local-only tool for personal use.
+>
+> **No Premium?** Use [Spot_to_YT_Converter](https://github.com/21Yeet21/Spot_to_YT_Converter) to convert Spotify tracks to YouTube playlists instead.
 
 ---
 
@@ -180,10 +253,11 @@ n96-freq/
 ├── sw.js                  # Service Worker for offline caching
 ├── manifest.json          # PWA manifest
 ├── package.json           # Dependencies & scripts
+├── .env.example           # Configuration template (safe to commit)
 ├── .gitignore
 ├── assets/
 │   ├── css/
-│   │   └── style.css      # Design system, themes, all styles
+│   │   └── style.css      # Design system, 11 themes, all styles
 │   └── js/
 │       └── app.js         # Frontend application logic
 └── music/                 # Default music directory (user-configured)
