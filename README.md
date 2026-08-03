@@ -28,8 +28,6 @@
 | ![spotify](screenshots/spotify.mp4) | ![collections](screenshots/collections.mp4) | ![features](screenshots/features.mp4) |
 | *Spotify playlist integration* | *Collections & playlists* | *Ambient sounds, timers & more* |
 
-> **Recording tips:** Record short 15–20s clips with OBS at 720p. Compress with `ffmpeg -i clip.mp4 -vcodec libx264 -crf 23 -preset slow -acodec aac output.mp4`. Drop them in `screenshots/`.
-
 ---
 
 ## ✨ Features
