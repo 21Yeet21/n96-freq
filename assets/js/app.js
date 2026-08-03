@@ -1,8 +1,8 @@
 /* N96_freq — app.js
-   Version: 88 (theme picker; sidebar collapse fix; 11 themes)
+   Version: 90 (removed blobs, waves follow theme instantly, stars fill full page)
    If you see this exact string in DevTools Console, you have the latest version.
    If you don't see it, your browser is loading a STALE cached copy — do Ctrl+Shift+R. */
-console.log("%c[N96] app.js v88 loaded", "color:#7fd1a4;font-weight:bold;");
+console.log("%c[N96] app.js v90 loaded", "color:#7fd1a4;font-weight:bold;");
 
 const $ = function(s) { return document.querySelector(s); };
 const $$ = function(s) { return Array.from(document.querySelectorAll(s)); };
@@ -1541,6 +1541,27 @@ function toggleShuffle() {
       console.log("[spotify] shuffle OFF");
     }
   }
+  /* v90: YouTube playlist shuffle — re-fetch and shuffle by index */
+  if (ytPlaylistState.active && ytPlaylistState.videos.length > 0) {
+    if (N96.shuffleOn) {
+      /* Fisher-Yates shuffle the videos array */
+      var arr = ytPlaylistState.videos.slice();
+      for (var i = arr.length - 1; i > 0; i--) {
+        var j = Math.floor(Math.random() * (i + 1));
+        var temp = arr[i]; arr[i] = arr[j]; arr[j] = temp;
+      }
+      ytPlaylistState.videos = arr;
+      ytPlaylistState.currentIndex = 0;
+      ytPlaylistState.isShuffle = true;
+      playYtPlaylistVideo(0);
+      renderPlaylistResult();
+      showToast('Shuffled — ' + arr.length + ' videos', 'info');
+      console.log("[yt-playlist] shuffle ON — reshuffled " + arr.length + " videos");
+    } else {
+      ytPlaylistState.isShuffle = false;
+      console.log("[yt-playlist] shuffle OFF");
+    }
+  }
   var sb=document.getElementById("shuffle-btn");if(sb&&N96.shuffleOn){sb.style.transform="rotate(360deg)";setTimeout(function(){sb.style.transform="";},350);}
 }
 
@@ -1672,7 +1693,7 @@ function setupSeekSlider() {
 
 function initAurora() {
   var canvas=auroraCanvas; if(!canvas)return;var ctx=canvas.getContext("2d");
-  var stars=[];var starCount=160;
+  var stars=[];var starCount=220;
   /* v87: Star glow intensity — pulses with music when playing */
   var _starGlowBase = 0.12;
   var _starGlowBoost = 0;
@@ -1683,7 +1704,7 @@ function initAurora() {
     for(var i=0;i<starCount;i++){
       stars.push({
         x:Math.random()*W,
-        y:Math.random()*H*0.75,
+        y:Math.random()*H,
         r:Math.random()+0.3,
         a:Math.random()*0.5+_starGlowBase,
         ts:0.002+Math.random()*0.007,
@@ -1709,9 +1730,9 @@ function initAurora() {
   /* Debounced resize listener to prevent performance issues */
   var resizeTimeout;
   window.addEventListener("resize",function(){clearTimeout(resizeTimeout);resizeTimeout=setTimeout(resize,150);});
-  var waves=[{y:0.38,a:42,f:0.0026,s:0.00024,hue:currentAuroraPalette.waveHues[0]},{y:0.415,a:32,f:0.0032,s:-0.00018,hue:currentAuroraPalette.waveHues[1]},{y:0.35,a:58,f:0.0019,s:0.00032,hue:currentAuroraPalette.waveHues[2]}];
-  var W0=window.innerWidth,H0=window.innerHeight;
-  var blobs=[],i;for(i=0;i<6;i++){blobs.push({x:Math.random()*W0,y:H0*(0.25+Math.random()*0.3),r:90+Math.random()*130,hue:currentAuroraPalette.blobHueBase+Math.random()*44,vx:(Math.random()-0.5)*0.25,vy:-0.04-Math.random()*0.06,phase:Math.random()*Math.PI*2,ps:0.001+Math.random()*0.003});}
+  /* v90: Waves read hue dynamically from currentAuroraPalette so they follow theme changes instantly */
+  var waves=[{y:0.38,a:42,f:0.0026,s:0.00024},{y:0.415,a:32,f:0.0032,s:-0.00018},{y:0.35,a:58,f:0.0019,s:0.00032}];
+  /* v90: Removed big filled circles (blobs) — they were too bright/fast */
   var frame=0;
   /* v87: Throttle frame rate for performance — skip every other frame when idle */
   var _lastAuroraTime = 0;
@@ -1733,12 +1754,8 @@ function initAurora() {
     _auroraTargetFPS = N96.isPlaying ? 30 : 20;
 
     frame++;var W=window.innerWidth,H=window.innerHeight;var sg=ctx.createLinearGradient(0,0,0,H);sg.addColorStop(0,currentAuroraPalette.bgGradient[0]);sg.addColorStop(0.45,currentAuroraPalette.bgGradient[1]);sg.addColorStop(1,currentAuroraPalette.bgGradient[2]);ctx.fillStyle=sg;ctx.fillRect(0,0,W,H);
-    for(i=0;i<blobs.length;i++){var b=blobs[i];b.x+=b.vx;b.y+=b.vy;var px=(mouseX-0.5)*20,py=(mouseY-0.5)*12;
-    /* v85: Bounce blobs off ALL edges so they stay visible and loop forever */
-    if(b.y<-80)b.vy=Math.abs(b.vy);
-    if(b.y>H+80)b.vy=-Math.abs(b.vy);
-    if(b.x<-b.r*1.5)b.x=W+b.r*1.5;if(b.x>W+b.r*1.5)b.x=-b.r*1.5;var p=0.85+Math.sin(frame*b.ps+b.phase)*0.15;var g=ctx.createRadialGradient(b.x+px,b.y+py,0,b.x+px,b.y+py,b.r*p);g.addColorStop(0,"hsla("+b.hue+",60%,52%,0.1)");g.addColorStop(1,"rgba(0,0,0,0)");ctx.fillStyle=g;ctx.fillRect(b.x-b.r+px,b.y-b.r+py,b.r*2,b.r*2);}
-    for(i=0;i<waves.length;i++){var w=waves[i],baseY=H*w.y;ctx.beginPath();for(var x=0;x<=W;x+=4){var dy=Math.sin(x*w.f+frame*w.s*60)*w.a+Math.sin(x*w.f*2.1+frame*w.s*1.6)*w.a*0.3;if(x===0)ctx.moveTo(x,baseY+dy);else ctx.lineTo(x,baseY+dy);}ctx.strokeStyle="hsla("+w.hue+",55%,48%,0.07)";ctx.lineWidth=26+Math.sin(frame*0.01+w.y*8)*10;ctx.shadowColor="hsla("+w.hue+",55%,45%,0.35)";ctx.shadowBlur=30;ctx.stroke();ctx.shadowBlur=0;}
+    /* v90: Waves now read hue from currentAuroraPalette so they follow theme instantly */
+    for(i=0;i<waves.length;i++){var w=waves[i],baseY=H*w.y,wh=currentAuroraPalette.waveHues[i]||w.hue||200;ctx.beginPath();for(var x=0;x<=W;x+=4){var dy=Math.sin(x*w.f+frame*w.s*60)*w.a+Math.sin(x*w.f*2.1+frame*w.s*1.6)*w.a*0.3;if(x===0)ctx.moveTo(x,baseY+dy);else ctx.lineTo(x,baseY+dy);}ctx.strokeStyle="hsla("+wh+",55%,48%,0.07)";ctx.lineWidth=26+Math.sin(frame*0.01+w.y*8)*10;ctx.shadowColor="hsla("+wh+",55%,45%,0.35)";ctx.shadowBlur=30;ctx.stroke();ctx.shadowBlur=0;}
     /* v87: Improved stars — glow when music is playing, dim when idle */
     var isPlaying = N96.isPlaying;
     /* Smooth glow boost transition */
@@ -3383,8 +3400,8 @@ async function playSavedPlaylistDirectly(url, name) {
     ytPlaylistState.currentIndex = -1;
     ytPlaylistState.isShuffle = false;
 
-    /* Auto-play — start playing immediately */
-    playYtPlaylist(false);
+    /* Auto-play — start playing immediately, respecting the global shuffle toggle */
+    playYtPlaylist(N96.shuffleOn);
 
     /* Update sidebar to highlight the active playlist */
     renderYtPlaylistsSidebar();
@@ -5847,17 +5864,29 @@ function saveCollections(collections) {
 }
 
 function createCollectionPrompt() {
-  /* Inline prompt — no alert/prompt allowed. Create a temporary input. */
-  var list = document.getElementById("collections-list");
-  if (!list) return;
+  /* v90: Inline prompt in the header bar — no separate slider row.
+     Clicking "+" transforms the add-btn into an input+ok+cancel row. */
+  var section = document.getElementById("collections-section");
+  if (!section) return;
+  var header = section.querySelector(".collapsible-header");
+  if (!header) return;
 
   /* Check if there's already an open input */
-  if (list.querySelector(".collection-create-input")) return;
+  if (header.querySelector(".collection-create-input")) return;
 
+  /* Hide the + button, chevron, and title while editing */
+  var addBtn = header.querySelector(".collection-add-btn");
+  var chevron = header.querySelector(".chevron");
+  var titleSpan = header.querySelector("span:not(.chevron):not(.collection-add-btn)");
+  if (addBtn) addBtn.style.display = "none";
+  if (chevron) chevron.style.display = "none";
+  if (titleSpan) titleSpan.style.display = "none";
+
+  /* Build the inline row: input + confirm + cancel — all in the header */
   var wrapper = document.createElement("div");
-  wrapper.className = "collection-create-row";
+  wrapper.className = "collection-create-inline";
   wrapper.innerHTML =
-    '<input type="text" class="collection-create-input" placeholder="Collection name…" maxlength="40" autofocus />' +
+    '<input type="text" class="collection-create-input" placeholder="New collection name…" maxlength="40" autofocus />' +
     '<button class="collection-create-ok" title="Create" aria-label="Create collection">' +
       '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>' +
     '</button>' +
@@ -5865,7 +5894,7 @@ function createCollectionPrompt() {
       '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>' +
     '</button>';
 
-  list.insertBefore(wrapper, list.firstChild);
+  header.appendChild(wrapper);
 
   var input = wrapper.querySelector(".collection-create-input");
   var okBtn = wrapper.querySelector(".collection-create-ok");
@@ -5873,13 +5902,15 @@ function createCollectionPrompt() {
 
   function doCreate() {
     var name = (input.value || "").trim();
-    if (!name) { wrapper.remove(); return; }
+    cleanup();
+    if (!name) return;
     var collections = loadCollections();
     /* Prevent duplicate names */
     for (var i = 0; i < collections.length; i++) {
       if (collections[i].name.toLowerCase() === name.toLowerCase()) {
         showToast('Collection "' + name + '" already exists');
-        input.focus();
+        /* Re-open the input so they can fix it */
+        createCollectionPrompt();
         return;
       }
     }
@@ -5889,7 +5920,14 @@ function createCollectionPrompt() {
     showToast('Collection "' + name + '" created');
   }
 
-  function doCancel() { wrapper.remove(); }
+  function doCancel() { cleanup(); }
+
+  function cleanup() {
+    wrapper.remove();
+    if (addBtn) addBtn.style.display = "";
+    if (chevron) chevron.style.display = "";
+    if (titleSpan) titleSpan.style.display = "";
+  }
 
   okBtn.addEventListener("click", function(e) { e.stopPropagation(); doCreate(); });
   cancelBtn.addEventListener("click", function(e) { e.stopPropagation(); doCancel(); });
@@ -5905,14 +5943,10 @@ function renderCollectionsSidebar() {
   if (!list) return;
   var collections = loadCollections();
 
-  /* Preserve any open create-input row */
-  var createRow = list.querySelector(".collection-create-row");
-  /* v77: preserve any open rename-input row */
-  var renameRow = list.querySelector(".collection-rename-row");
+  /* v90: No longer preserving create-row or rename-row — both inline in header now */
   list.innerHTML = "";
-  if (createRow) list.appendChild(createRow);
 
-  if (collections.length === 0 && !createRow) {
+  if (collections.length === 0) {
     var hint = document.createElement("div");
     hint.className = "collection-hint";
     hint.textContent = "Create a collection, then drag mixes & playlists here";
@@ -5987,14 +6021,7 @@ function renderCollectionsSidebar() {
 
       colEl.appendChild(header);
 
-      /* v77: If this collection has a pending rename, insert the rename input */
-      if (renameRow && renameRow.getAttribute("data-collection-id") === col.id) {
-        colEl.appendChild(renameRow);
-        colEl.classList.add("expanded");
-        /* Re-attach events and focus */
-        var rInput = renameRow.querySelector(".collection-rename-input");
-        if (rInput) setTimeout(function(){ rInput.focus(); rInput.select(); }, 0);
-      }
+      /* v90: Rename is inline in header now — no separate row to preserve */
 
       /* Items list (hidden by default, shown when expanded) */
       var itemsList = document.createElement("div");
@@ -6332,15 +6359,23 @@ function handleCollectionDrop(e, colId) {
    v77: Collection Rename — inline edit input
    ═══════════════════════════════════════════════════════════════ */
 function startRenameCollection(colId, currentName, headerEl) {
-  /* Check if there's already a rename input open */
-  var existing = document.querySelector(".collection-rename-row");
+  /* v90: Inline rename in the header bar — no separate slider row.
+     Hides the name/count/action icons, replaces with input+ok+cancel. */
+  var existing = document.querySelector(".collection-rename-inline");
   if (existing) existing.remove();
 
-  var colEl = headerEl.closest(".collection-folder");
-  if (!colEl) return;
+  /* Hide the name, count, rename, delete, restore, and icon while editing */
+  var colIcon = headerEl.querySelector(".collection-icon");
+  var colName = headerEl.querySelector(".collection-name");
+  var colCount = headerEl.querySelector(".collection-count");
+  var colRename = headerEl.querySelector(".collection-rename");
+  var colDelete = headerEl.querySelector(".collection-delete");
+  var colRestore = headerEl.querySelector(".collection-restore");
+  var hideEls = [colIcon, colName, colCount, colRename, colDelete, colRestore];
+  hideEls.forEach(function(el) { if (el) el.style.display = "none"; });
 
   var wrapper = document.createElement("div");
-  wrapper.className = "collection-rename-row";
+  wrapper.className = "collection-rename-inline";
   wrapper.setAttribute("data-collection-id", colId);
   wrapper.innerHTML =
     '<input type="text" class="collection-rename-input" value="' + esc(currentName).replace(/"/g, '&quot;') + '" maxlength="40" />' +
@@ -6351,13 +6386,7 @@ function startRenameCollection(colId, currentName, headerEl) {
       '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>' +
     '</button>';
 
-  /* Insert after the header, before the items list */
-  var itemsList = colEl.querySelector(".collection-items");
-  if (itemsList) {
-    colEl.insertBefore(wrapper, itemsList);
-  } else {
-    colEl.appendChild(wrapper);
-  }
+  headerEl.appendChild(wrapper);
 
   var input = wrapper.querySelector(".collection-rename-input");
   var okBtn = wrapper.querySelector(".collection-rename-ok");
@@ -6365,17 +6394,15 @@ function startRenameCollection(colId, currentName, headerEl) {
 
   function doRename() {
     var newName = (input.value || "").trim();
-    if (!newName || newName === currentName) {
-      wrapper.remove();
-      return;
-    }
+    cleanup();
+    if (!newName || newName === currentName) return;
     /* Check for duplicate names */
     var collections = loadCollections();
     for (var i = 0; i < collections.length; i++) {
       if (collections[i].id !== colId && collections[i].name.toLowerCase() === newName.toLowerCase()) {
         showToast('Collection "' + newName + '" already exists');
-        input.focus();
-        input.select();
+        /* Re-open the rename input */
+        startRenameCollection(colId, currentName, headerEl);
         return;
       }
     }
@@ -6387,14 +6414,16 @@ function startRenameCollection(colId, currentName, headerEl) {
       }
     }
     saveCollections(collections);
-    /* Remove the rename row BEFORE re-rendering, otherwise renderCollectionsSidebar
-       preserves it and re-inserts it into the DOM */
-    wrapper.remove();
     renderCollectionsSidebar();
     showToast('Renamed to "' + newName + '"');
   }
 
-  function doCancel() { wrapper.remove(); }
+  function doCancel() { cleanup(); }
+
+  function cleanup() {
+    wrapper.remove();
+    hideEls.forEach(function(el) { if (el) el.style.display = ""; });
+  }
 
   okBtn.addEventListener("click", function(e) { e.stopPropagation(); doRename(); });
   cancelBtn.addEventListener("click", function(e) { e.stopPropagation(); doCancel(); });

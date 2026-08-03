@@ -2859,6 +2859,10 @@ body.immersive-mode .np-meta {
 #spotify-section .collapsible-header:hover .spotify-disconnect-btn:not(.hidden) {
   opacity: 0.6;
 }
+/* v90: Properly hide the disconnect button when not connected */
+.spotify-disconnect-btn.hidden {
+  display: none !important;
+}
 
 /* ═══════════════════════════════════════════════════════════════════════════
    Responsive — Medium screens (max-width: 1200px)
@@ -4288,28 +4292,31 @@ body.ultra-mode .setup-wizard-btn {
   text-align: center;
 }
 
-/* Create collection inline input row */
-.collection-create-row {
+/* v90: Create collection inline in the header bar — compact input+ok+cancel */
+.collection-create-inline {
   display: flex;
   align-items: center;
   gap: 4px;
-  padding: 6px 12px;
-  border-bottom: 1px solid var(--border);
+  flex: 1;
+  min-width: 0;
+  margin-left: 8px;
 }
 .collection-create-input {
   flex: 1;
+  min-width: 0;
   background: rgba(0, 0, 0, 0.3);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   color: var(--text-primary);
   font-family: var(--font-sans);
   font-size: var(--text-sm);
-  padding: 4px 8px;
+  padding: 3px 6px;
   outline: none;
   transition: border-color var(--duration-fast);
 }
 .collection-create-input:focus {
   border-color: var(--accent);
+  box-shadow: 0 0 4px rgba(127, 209, 164, 0.2);
 }
 .collection-create-input::placeholder {
   color: var(--text-muted);
@@ -4324,11 +4331,14 @@ body.ultra-mode .setup-wizard-btn {
   padding: 3px 5px;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
   transition: all var(--duration-fast);
 }
 .collection-create-ok:hover {
   color: var(--accent);
   border-color: var(--accent);
+  background: rgba(127, 209, 164, 0.08);
 }
 .collection-create-cancel:hover {
   color: #e57373;
@@ -4454,24 +4464,24 @@ body.ultra-mode .setup-wizard-btn {
   background: rgba(100, 181, 246, 0.15);
 }
 
-/* v77: Rename input row (inline, below header) */
-.collection-rename-row {
+/* v90: Rename inline in the header bar — compact input+ok+cancel */
+.collection-rename-inline {
   display: flex;
   align-items: center;
   gap: 4px;
-  padding: 4px 12px 4px 24px;
-  border-bottom: 1px solid var(--border);
-  background: rgba(0, 0, 0, 0.15);
+  flex: 1;
+  min-width: 0;
 }
 .collection-rename-input {
   flex: 1;
+  min-width: 0;
   background: rgba(0, 0, 0, 0.3);
-  border: 1px solid var(--accent);
+  border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   color: var(--text-primary);
   font-family: var(--font-sans);
   font-size: var(--text-sm);
-  padding: 4px 8px;
+  padding: 3px 6px;
   outline: none;
   transition: border-color var(--duration-fast);
 }
@@ -4489,6 +4499,8 @@ body.ultra-mode .setup-wizard-btn {
   padding: 3px 5px;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
   transition: all var(--duration-fast);
 }
 .collection-rename-ok:hover {
